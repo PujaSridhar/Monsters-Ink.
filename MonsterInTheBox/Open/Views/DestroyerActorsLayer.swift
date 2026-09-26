@@ -2,7 +2,7 @@ import SwiftUI
 
 /// DEV B — What moves on the open-phone map.
 /// - Warning: the city goes dark and the cat hides; only its big red eyes stare out, creeping
-///   from the edge toward the center as the hinge opens (see `HidingEyesStage`).
+///   from the right edge toward the center as the hinge opens (see `HidingEyesStage`).
 /// - Agitation / Rampage / Multitasking: the one hero cat is a 2× kaiju that hunts and eats
 ///   the citizen cats and smashes towers. Citizens flee along the roads.
 struct DestroyerActorsLayer: View {
@@ -19,7 +19,7 @@ struct DestroyerActorsLayer: View {
                 HidingEyesStage(
                     angle: engine.hinge.angleDegrees,
                     intensity: engine.hapticIntensity,
-                    eyesWidth: max(metrics.tileSize * 7, 180)
+                    eyesWidth: max(metrics.tileSize * 8, 250)
                 )
                 .frame(width: metrics.size.width, height: metrics.size.height)
                 .transition(.opacity)

@@ -11,7 +11,7 @@ import Foundation
 ///     R R R R R R R R R R R R R R R R R R R
 ///     …3 × 3 blocks, a 19 × 19 square that spans both halves of the inner display
 ///
-/// The city starts with one block developed and unlocks more in `expansionOrder`.
+/// The city starts building from the center of the world (1, 1) and gradually expands outward.
 enum CityLayout {
     static let blockSize = 5
     static let period = blockSize + 1
@@ -23,17 +23,20 @@ enum CityLayout {
     /// A tower is drawn as `floors + 1` tiles (base, middles, roof), so it fits in its block.
     static let maxFloors = blockSize - 1
 
-    /// Grows from the bottom-center block (which straddles the fold) outward, then upward.
+    /// The center block of the entire world.
+    static let centerBlock = BlockID(column: 1, row: 1)
+
+    /// Starts at the central downtown block (center of the screen) and gradually radiates outward.
     static let expansionOrder: [BlockID] = [
-        BlockID(column: 1, row: 2),
-        BlockID(column: 0, row: 2),
-        BlockID(column: 2, row: 2),
-        BlockID(column: 1, row: 1),
-        BlockID(column: 0, row: 1),
-        BlockID(column: 2, row: 1),
-        BlockID(column: 1, row: 0),
-        BlockID(column: 0, row: 0),
-        BlockID(column: 2, row: 0),
+        BlockID(column: 1, row: 1), // 1. Central Plaza (Center core)
+        BlockID(column: 1, row: 2), // 2. South District
+        BlockID(column: 0, row: 1), // 3. West Village
+        BlockID(column: 2, row: 1), // 4. East Promenade
+        BlockID(column: 1, row: 0), // 5. North Heights
+        BlockID(column: 0, row: 2), // 6. Riverview Cove (SW)
+        BlockID(column: 2, row: 2), // 7. Sunset Park (SE)
+        BlockID(column: 0, row: 0), // 8. Whispering Pines (NW)
+        BlockID(column: 2, row: 0), // 9. Summit Ridge (NE)
     ]
 
     static func contains(_ point: GridPoint) -> Bool {
@@ -59,7 +62,7 @@ enum CityLayout {
     }
 }
 
-struct BlockID: Hashable {
+struct BlockID: Hashable, Codable {
     var column: Int
     var row: Int
 
@@ -93,5 +96,26 @@ struct BlockID: Hashable {
             roads.append(GridPoint(x: maxX, y: y))
         }
         return roads
+    }
+
+    /// Center point of this block.
+    var center: GridPoint {
+        GridPoint(x: origin.x + CityLayout.blockSize / 2, y: origin.y + CityLayout.blockSize / 2)
+    }
+
+    /// Friendly district title.
+    var districtName: String {
+        switch (column, row) {
+        case (1, 1): "Central Plaza"
+        case (1, 2): "South District"
+        case (0, 1): "West Village"
+        case (2, 1): "East Promenade"
+        case (1, 0): "North Heights"
+        case (0, 2): "Riverview Cove"
+        case (2, 2): "Sunset Park"
+        case (0, 0): "Whispering Pines"
+        case (2, 0): "Summit Ridge"
+        default: "District (\(column), \(row))"
+        }
     }
 }

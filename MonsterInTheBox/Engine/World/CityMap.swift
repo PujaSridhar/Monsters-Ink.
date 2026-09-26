@@ -22,6 +22,36 @@ struct CityMap: Equatable {
         developNextBlock()
     }
 
+    init(snapshot: SavedCityState) {
+        self.developedBlocks = snapshot.developedBlocks
+        self.roads = Set(snapshot.roads)
+        var dict: [GridPoint: Lot] = [:]
+        for lot in snapshot.lots {
+            dict[lot.position] = lot
+        }
+        self.lots = dict
+    }
+
+    func toSnapshot(
+        cityHealth: Double,
+        floorsBuilt: Int,
+        floorsDestroyed: Int,
+        blocksDeveloped: Int,
+        totalFocusSeconds: TimeInterval
+    ) -> SavedCityState {
+        SavedCityState(
+            developedBlocks: developedBlocks,
+            lots: Array(lots.values),
+            roads: Array(roads),
+            cityHealth: cityHealth,
+            floorsBuiltCount: floorsBuilt,
+            floorsDestroyedCount: floorsDestroyed,
+            blocksDevelopedCount: blocksDeveloped,
+            totalFocusSeconds: totalFocusSeconds,
+            savedAt: .now
+        )
+    }
+
     // MARK: Queries
 
     func ground(at point: GridPoint) -> Ground {
@@ -41,6 +71,14 @@ struct CityMap: Equatable {
     var standingLots: [Lot] { lots.values.filter { !$0.isEmpty } }
     var totalFloors: Int { lots.values.reduce(0) { $0 + $1.floors } }
     var capacity: Int { lots.values.reduce(0) { $0 + $1.maxFloors } }
+
+    var startingPosition: GridPoint {
+        if let firstBlock = developedBlocks.first {
+            let centerLot = firstBlock.lots[firstBlock.lots.count / 2]
+            return CityLayout.frontDoor(of: centerLot)
+        }
+        return GridPoint(x: CityLayout.columns / 2, y: CityLayout.rows / 2)
+    }
 
     var nextBlock: BlockID? {
         CityLayout.expansionOrder.first { !developedBlocks.contains($0) }
@@ -97,7 +135,9 @@ struct CityMap: Equatable {
 
     mutating func applyRust(_ amount: Double) {
         for (position, lot) in lots {
-            lots[position]?.rust = min(1, lot.rust + amount)
+            var updated = lot
+            updated.rust = min(1, updated.rust + amount)
+            lots[position] = updated
         }
     }
 }

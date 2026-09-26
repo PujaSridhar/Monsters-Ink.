@@ -1,70 +1,75 @@
 import SwiftUI
 
 /// DEV B — Places the hiding cat's eyes on the inner display while the phone is opening.
-/// - Opened sideways (book pose, vertical fold): the eyes stay on the **right screen**. They
-///   start at its right edge and creep left toward the fold as the hinge opens.
-/// - Opened upward (laptop pose, horizontal fold): the eyes stay on the **bottom screen**. They
-///   start at its bottom edge and rise toward the fold.
-/// They never cross the fold. At 180° the game switches to the city and kaiju.
 ///
-/// The fold comes from `ReservedRegion(.division)`. If none is reported (e.g. the debug
-/// slider), the screen's shape decides the direction and its midline stands in for the fold.
+/// Motion Specs:
+/// - As the user begins slowly opening the phone, the red eyes pop in from the far right end
+///   of the screen (the power button side of the device, as shown in the user's screenshot).
+/// - It NEVER appears from the bottom.
+/// - The eyes have vertical slit pupils and almond contours.
+/// - Around 90° hinge angle, the eyes smoothly transition and align exactly at the
+///   center of the screen.
+/// - From 90° up until fully open (178°), the eyes stay firmly locked at the center of the display,
+///   pulsing and glowing with increasing menace.
+/// - When the phone opens fully (178°–180°), the eyes vanish and the 2× kaiju emerges to destroy the city.
 struct HidingEyesStage: View {
     /// Hinge angle in degrees (0 = closed, 180 = flat).
     var angle: Double
     var intensity: Double
     var eyesWidth: CGFloat
 
-    @State private var fold: CGRect?
-
     var body: some View {
         GeometryReader { proxy in
-            HidingEyes(width: eyesWidth, intensity: intensity)
-                .position(position(in: proxy.size))
-                .animation(.smooth, value: angle)
-        }
-        .onGeometryChange(for: CGRect?.self) { proxy in
-            proxy.reservedRegions(kind: .division).first?.frame
-        } action: { frame in
-            // Keep the last known fold if the region briefly disappears.
-            if let frame { fold = frame }
+            let size = proxy.size
+            let pos = position(in: size)
+
+            ZStack {
+                // Eerie red aura radiating from behind the eyes into the dark void
+                RadialGradient(
+                    colors: [
+                        Color.red.opacity(0.35 * max(0.4, intensity)),
+                        Color.red.opacity(0.12 * max(0.4, intensity)),
+                        Color.clear
+                    ],
+                    center: .init(x: pos.x / max(1, size.width), y: pos.y / max(1, size.height)),
+                    startRadius: 20,
+                    endRadius: eyesWidth * 1.8
+                )
+                .ignoresSafeArea()
+
+                HidingEyes(width: eyesWidth, intensity: intensity)
+                    .scaleEffect(currentScale)
+                    .position(pos)
+                    .animation(.interpolatingSpring(stiffness: 100, damping: 16), value: angle)
+            }
         }
     }
 
-    /// 0 while barely cracked, 1 just before flat.
-    private var progress: CGFloat {
-        CGFloat(min(max(angle / GameTuning.rampageAngle, 0), 1))
+    /// Progress from the right edge (0.0) to center (1.0).
+    /// Reaches full 1.0 (exact center of the screen) right at 90°.
+    private var transitionProgress: CGFloat {
+        let minAngle: Double = 5
+        let centerAngle: Double = 90
+        guard angle > minAngle else { return 0 }
+        if angle >= centerAngle { return 1.0 }
+        let t = (angle - minAngle) / (centerAngle - minAngle)
+        // Smooth cubic ease (smoothstep)
+        return CGFloat(t * t * (3.0 - 2.0 * t))
     }
 
-    private func axis(in size: CGSize) -> FoldAxis {
-        if let fold { return fold.height > fold.width ? .vertical : .horizontal }
-        return size.width > size.height ? .horizontal : .vertical
+    /// Looming scale boost as the eyes move to the center and the hinge opens wider.
+    private var currentScale: CGFloat {
+        let base: CGFloat = 0.9 + 0.25 * transitionProgress
+        return base * CGFloat(1.0 + 0.18 * intensity)
     }
 
     private func position(in size: CGSize) -> CGPoint {
-        let eyesHeight = eyesWidth * 0.38 / 1.6
-        let gap: CGFloat = 16
-        switch axis(in: size) {
-        case .vertical:
-            // Right screen: right edge → just right of the fold.
-            let foldEdge = fold?.maxX ?? size.width / 2
-            let start = size.width - eyesWidth / 2 - gap
-            let end = min(start, foldEdge + eyesWidth / 2 + gap)
-            return CGPoint(x: start + (end - start) * progress, y: size.height / 2)
-        case .horizontal:
-            // Bottom screen: bottom edge → just below the fold.
-            let foldEdge = fold?.maxY ?? size.height / 2
-            let start = size.height - eyesHeight - gap * 3
-            let end = min(start, foldEdge + eyesHeight + gap)
-            return CGPoint(x: size.width / 2, y: start + (end - start) * progress)
-        }
+        // ALWAYS appear from the right end of the screen (power button side), NEVER from the bottom!
+        let progress = transitionProgress
+        let startX = size.width - (eyesWidth * 0.45)
+        let targetCenterX = size.width / 2
+        let currentX = startX + (targetCenterX - startX) * progress
+        let currentY = size.height / 2
+        return CGPoint(x: currentX, y: currentY)
     }
-}
-
-/// Which way the crease runs across the inner display.
-nonisolated enum FoldAxis: Equatable, Sendable {
-    /// A vertical crease: the phone opens sideways, like a book.
-    case vertical
-    /// A horizontal crease: the phone opens upward, like a laptop.
-    case horizontal
 }

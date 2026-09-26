@@ -2,6 +2,20 @@ import Foundation
 import Observation
 import os
 
+/// Status of the user's focus commitment.
+enum FocusSessionStatus: Equatable {
+    /// Ready for the user to choose their target time and begin.
+    case notStarted
+    /// Focus session in progress. Time is counting down.
+    case active
+    /// Full duration completed with focus. Reward granted, new city state saved!
+    case completed
+    /// User stopped manually before target was reached. Progress reverted to initial state.
+    case cancelled
+    /// Timer finished but phone was used/destroyed during session. Damaged state saved.
+    case penaltyEnded
+}
+
 /// The single source of truth. Views read from it; only `RootView` feeds it hardware input.
 ///
 /// - Inputs: `hingeDidChange`, `sizeClassDidChange`, `scenePhaseDidChange` (+ `simulate…` for debug).
@@ -16,6 +30,25 @@ final class KaijuEngine {
     private(set) var actors: CityActors
     private(set) var builder = BuilderBrain()
     private(set) var destroyer = DestroyerBrain()
+
+    // MARK: Focus Session & Game Mechanics
+
+    private(set) var sessionStatus: FocusSessionStatus = .notStarted
+    var targetFocusDuration: TimeInterval = 25 * 60 // Default: 25 minutes
+    private(set) var sessionElapsed: TimeInterval = 0
+
+    // Initial state snapshot saved at session start. Used for 100% rollback on early cancel.
+    private var initialMapSnapshot: CityMap?
+    private var initialActorsSnapshot: CityActors?
+    private var initialCityHealth: Double = 100
+
+    var remainingSessionTime: TimeInterval {
+        max(0, targetFocusDuration - sessionElapsed)
+    }
+
+    var isSessionActive: Bool {
+        sessionStatus == .active
+    }
 
     // MARK: Score
 
@@ -41,7 +74,7 @@ final class KaijuEngine {
     private(set) var isBackgrounded = false
     private var backgroundedAt: Date?
 
-    // MARK: Debug / demo controls (driven by the State Visualizer)
+    // MARK: Debug / demo controls
 
     private(set) var simulatedHinge: HingeReading?
     private(set) var simulatedMultitasking: Bool?
@@ -51,9 +84,41 @@ final class KaijuEngine {
     private static let log = Logger(subsystem: "com.monstersink.MonsterInTheBox", category: "Engine")
 
     init() {
-        let world = CityWorld()
-        map = world.map
-        actors = world.actors
+        if let saved = CityPersistence.load() {
+            let restoredMap = CityMap(snapshot: saved)
+            map = restoredMap
+            cityHealth = saved.cityHealth
+            floorsBuiltCount = saved.floorsBuiltCount
+            floorsDestroyedCount = saved.floorsDestroyedCount
+            blocksDevelopedCount = saved.blocksDevelopedCount
+            focusSeconds = saved.totalFocusSeconds
+
+            var world = CityWorld(
+                map: restoredMap,
+                actors: CityActors(hero: CatActor(id: 0, look: .hero, position: restoredMap.startingPosition, stepDuration: GameTuning.heroStep))
+            )
+            for _ in 0..<max(GameTuning.startingCitizens, restoredMap.developedBlocks.count) {
+                world.addCitizen()
+            }
+            actors = world.actors
+        } else {
+            let world = CityWorld()
+            map = world.map
+            actors = world.actors
+        }
+    }
+
+    // MARK: Persistence
+
+    func persistCurrentState() {
+        let snapshot = map.toSnapshot(
+            cityHealth: cityHealth,
+            floorsBuilt: floorsBuiltCount,
+            floorsDestroyed: floorsDestroyedCount,
+            blocksDeveloped: blocksDevelopedCount,
+            totalFocusSeconds: focusSeconds
+        )
+        CityPersistence.save(snapshot)
     }
 
     // MARK: Derived state
@@ -69,7 +134,14 @@ final class KaijuEngine {
         return isCompactWidth && hinge.status != .closed
     }
 
+    /// The cat becomes destructive ONLY during an active session when the user commits an infraction
+    /// (e.g. opens the phone, multitasks, or backgrounds the app).
+    /// When there is no active session, the city is peaceful and safe from destruction.
     var state: GameState {
+        guard isSessionActive else {
+            return .incubation
+        }
+
         if isBackgrounded { return .neglect }
         if isMultitasking { return .multitasking }
         switch hinge.status {
@@ -84,7 +156,8 @@ final class KaijuEngine {
 
     /// 0...1, linear from 15° to 179°. Drives haptics and visuals (shake, red tint).
     var hapticIntensity: Double {
-        HapticsController.intensity(forAngle: hinge.angleDegrees)
+        guard isSessionActive else { return 0 }
+        return HapticsController.intensity(forAngle: hinge.angleDegrees)
     }
 
     /// True when the closed, outer-display (building) experience should show.
@@ -99,6 +172,38 @@ final class KaijuEngine {
 
     private var decaySecondsPerPoint: TimeInterval {
         isDemoMode ? GameTuning.demoDecaySecondsPerPoint : GameTuning.realDecaySecondsPerPoint
+    }
+
+    // MARK: Session Control
+
+    /// Starts a session for the given duration. Snapshots initial state for potential rollback.
+    func startFocusSession(duration: TimeInterval) {
+        targetFocusDuration = duration
+        sessionElapsed = 0
+        focusSeconds = 0
+        // Snapshot initial state
+        initialMapSnapshot = map
+        initialActorsSnapshot = actors
+        initialCityHealth = cityHealth
+        sessionStatus = .active
+    }
+
+    /// User chose to give up / stop before time ended. Reverts 100% back to initial state.
+    func stopFocusSession() {
+        guard sessionStatus == .active else { return }
+        if let initialMapSnapshot, let initialActorsSnapshot {
+            map = initialMapSnapshot
+            actors = initialActorsSnapshot
+            cityHealth = initialCityHealth
+        }
+        sessionStatus = .cancelled
+        persistCurrentState()
+    }
+
+    /// Resets session status to .notStarted so user can start a new focus session.
+    func dismissSessionSummary() {
+        sessionStatus = .notStarted
+        sessionElapsed = 0
     }
 
     // MARK: Inputs from the root view
@@ -121,9 +226,11 @@ final class KaijuEngine {
         if isBackground, !isBackgrounded {
             isBackgrounded = true
             backgroundedAt = .now
+            persistCurrentState()
         } else if isActive, isBackgrounded {
             isBackgrounded = false
             applyNeglectDecay()
+            persistCurrentState()
         }
         stateMayHaveChanged(from: previous)
     }
@@ -146,8 +253,9 @@ final class KaijuEngine {
         neglectReport = nil
     }
 
-    /// Starts a fresh city and focus session.
+    /// Starts a fresh city and clears persisted storage.
     func resetCity() {
+        CityPersistence.clear()
         let world = CityWorld()
         map = world.map
         actors = world.actors
@@ -155,6 +263,10 @@ final class KaijuEngine {
         destroyer = DestroyerBrain()
         cityHealth = 100
         focusSeconds = 0
+        sessionElapsed = 0
+        sessionStatus = .notStarted
+        initialMapSnapshot = nil
+        initialActorsSnapshot = nil
         neglectReport = nil
     }
 
@@ -173,20 +285,55 @@ final class KaijuEngine {
         let current = state
         guard current.mode != .paused else { return }
 
+        // Advance session timing if active
+        if sessionStatus == .active {
+            sessionElapsed += dt
+            if sessionElapsed >= targetFocusDuration {
+                // Time has ended! Evaluate whether patient reward or distraction penalty
+                if cityHealth < initialCityHealth || current.isDestructive {
+                    // Penalty: phone was used or city was damaged. New damaged state is saved permanently.
+                    sessionStatus = .penaltyEnded
+                    initialMapSnapshot = map
+                    initialActorsSnapshot = actors
+                    initialCityHealth = cityHealth
+                    persistCurrentState()
+                } else {
+                    // Reward: user focused for the target duration. New built state is saved permanently.
+                    sessionStatus = .completed
+                    initialMapSnapshot = map
+                    initialActorsSnapshot = actors
+                    initialCityHealth = cityHealth
+                    persistCurrentState()
+                }
+            }
+        }
+
         var world = CityWorld(map: map, actors: actors)
         let context = BrainContext(state: current, dt: dt, buildInterval: buildInterval, intensity: hapticIntensity)
         let events: [WorldEvent]
         switch current.mode {
         case .building:
-            focusSeconds += dt
-            events = builder.tick(world: &world, context: context)
+            // Cat only builds when there is an active focus session
+            if sessionStatus == .active {
+                focusSeconds += dt
+                events = builder.tick(world: &world, context: context)
+            } else {
+                // Idle roaming when waiting for session
+                world.wanderHero(within: 3)
+                events = []
+            }
         case .destroying:
-            events = destroyer.tick(world: &world, context: context)
+            // Cat only destroys when there is an active focus session and phone is opened/misused
+            if sessionStatus == .active {
+                events = destroyer.tick(world: &world, context: context)
+            } else {
+                events = []
+            }
         case .paused:
             events = []
         }
         if !current.freezesCitizens {
-            world.tickCitizens(dt: dt, fleeingFrom: current.isDestructive ? world.actors.hero.position : nil)
+            world.tickCitizens(dt: dt, fleeingFrom: (current.isDestructive && isSessionActive) ? world.actors.hero.position : nil)
         }
 
         // Only assign when changed, so observers of `map` don't redraw on every cat step.
@@ -194,7 +341,7 @@ final class KaijuEngine {
         if world.actors != actors { actors = world.actors }
         apply(events)
 
-        if current == .warning || current == .agitation {
+        if isSessionActive && (current == .warning || current == .agitation) {
             haptics.update(intensity: hapticIntensity)
         }
     }
@@ -208,14 +355,17 @@ final class KaijuEngine {
                 cityHealth = min(100, cityHealth + GameTuning.healthPerFloor)
                 lastChangedLot = lot
                 floorsBuiltCount += 1
+                persistCurrentState()
             case .floorDestroyed(let lot):
                 cityHealth = max(0, cityHealth - GameTuning.healthPerDestroyedFloor)
                 lastChangedLot = lot
                 floorsDestroyedCount += 1
+                persistCurrentState()
             case .towerCollapsed:
                 haptics.slam()
             case .blockDeveloped:
                 blocksDevelopedCount += 1
+                persistCurrentState()
             case .catEaten(let position):
                 catsEatenCount += 1
                 lastEatenPosition = position
@@ -230,13 +380,17 @@ final class KaijuEngine {
         var world = CityWorld(map: map, actors: actors)
         switch current.mode {
         case .building: builder.enter(current, world: &world)
-        case .destroying: destroyer.enter(current, world: &world)
+        case .destroying:
+            if isSessionActive {
+                destroyer.enter(current, world: &world)
+            } else {
+                builder.enter(.incubation, world: &world)
+            }
         case .paused: world.actors.hero.stop()
         }
         if world.actors != actors { actors = world.actors }
 
-        if current.isKaiju {
-            // Spec: rampage deletes session progress instantly.
+        if current.isKaiju && isSessionActive {
             focusSeconds = 0
             haptics.slam()
         }
@@ -246,6 +400,8 @@ final class KaijuEngine {
     private func applyNeglectDecay() {
         guard let backgroundedAt else { return }
         self.backgroundedAt = nil
+        // The cat and neglect destroy the city ONLY during an active session
+        guard isSessionActive else { return }
         let secondsAway = Date.now.timeIntervalSince(backgroundedAt)
         let healthLost = min(cityHealth, secondsAway / decaySecondsPerPoint)
         guard healthLost > 0 else { return }

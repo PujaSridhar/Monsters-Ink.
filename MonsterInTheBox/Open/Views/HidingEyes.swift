@@ -25,32 +25,53 @@ struct HidingEyes: View {
                     .frame(width: eyeWidth, height: eyeWidth / 1.6)
             }
             .scaleEffect(x: 1, y: isBlinking ? 0.08 : 1)
-            .scaleEffect(1 + 0.4 * intensity)
-            // A slow sideways glance, so it feels alive.
+            .scaleEffect(1 + 0.35 * intensity)
+            // A slow sideways glance, so it feels alive and watchful
             .offset(x: sin(time * 0.7) * 6)
-            .shadow(color: .red.opacity(pulse), radius: 18 + 22 * intensity)
-            .shadow(color: .red.opacity(0.6 * pulse), radius: 6)
+            .shadow(color: .red.opacity(pulse), radius: 20 + 26 * intensity)
+            .shadow(color: Color(red: 1.0, green: 0.2, blue: 0.1).opacity(0.8 * pulse), radius: 8)
         }
         .accessibilityElement()
         .accessibilityLabel("Glowing red cat eyes watching from the dark")
     }
 }
 
-/// One almond-shaped red eye with a vertical slit pupil.
+/// One almond-shaped glowing red eye with an inner amber glow, a vertical slit pupil, and specular shine.
 private struct Eye: View {
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
+            let height = proxy.size.height
             ZStack {
+                // Sclera gradient with molten amber-to-crimson glow
                 Ellipse()
-                    .fill(RadialGradient(colors: [.orange, .red, Color(red: 0.5, green: 0, blue: 0)], center: .center, startRadius: 0, endRadius: width * 0.55))
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color(red: 1.0, green: 0.75, blue: 0.1), // Bright amber center
+                                Color(red: 1.0, green: 0.15, blue: 0.0), // Vivid crimson
+                                Color(red: 0.6, green: 0.0, blue: 0.0),  // Deep red border
+                                Color(red: 0.2, green: 0.0, blue: 0.0)
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: width * 0.55
+                        )
+                    )
+                // Dark limbal ring
+                Ellipse()
+                    .stroke(Color.black.opacity(0.6), lineWidth: 2)
+
+                // Vertical slit pupil
                 Capsule()
                     .fill(.black)
-                    .frame(width: width * 0.16, height: proxy.size.height * 0.85)
+                    .frame(width: width * 0.15, height: height * 0.86)
+
+                // Specular highlight dot
                 Circle()
-                    .fill(.white.opacity(0.8))
+                    .fill(.white.opacity(0.9))
                     .frame(width: width * 0.12)
-                    .offset(x: -width * 0.18, y: -proxy.size.height * 0.18)
+                    .offset(x: -width * 0.16, y: -height * 0.18)
             }
         }
     }

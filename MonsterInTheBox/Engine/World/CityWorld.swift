@@ -16,7 +16,13 @@ struct CityWorld: Equatable {
 
     init() {
         let map = CityMap()
-        let start = map.roads.min { ($0.y, $0.x) > ($1.y, $1.x) } ?? GridPoint(x: 0, y: 0)
+        let start: GridPoint
+        if let firstBlock = map.developedBlocks.first {
+            let centerLot = firstBlock.lots[firstBlock.lots.count / 2]
+            start = CityLayout.frontDoor(of: centerLot)
+        } else {
+            start = GridPoint(x: CityLayout.columns / 2, y: CityLayout.rows / 2)
+        }
         self.map = map
         actors = CityActors(hero: CatActor(id: 0, look: .hero, position: start, stepDuration: GameTuning.heroStep))
         for _ in 0..<GameTuning.startingCitizens {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Owns the engine, feeds it every hardware input, and routes to the closed or open experience.
-/// Dev A owns `ClosedGameView`, Dev B owns `OpenGameView`. Avoid editing this file without syncing.
+/// Dev A owns `ClosedGameView`, Dev B owns `OpenGameView`.
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -45,9 +45,6 @@ struct RootView: View {
                 OpenGameView()
                     .transition(.opacity)
             }
-
-            StateVisualizer()
-                .padding(.horizontal)
         }
         .animation(.smooth, value: engine.showsClosedExperience)
     }

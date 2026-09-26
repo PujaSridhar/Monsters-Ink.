@@ -1,7 +1,7 @@
 import Foundation
 
 /// A building plot. `floors == 0` is an empty construction site (or rubble if it was destroyed).
-struct Lot: Identifiable, Equatable {
+struct Lot: Identifiable, Equatable, Codable {
     var position: GridPoint
     var style: BuildingStyle
     var floors = 0
@@ -17,7 +17,7 @@ struct Lot: Identifiable, Equatable {
 }
 
 /// Which facade the tower uses. The tile art for each lives in `Shared/World/TileArt.swift`.
-enum BuildingStyle: CaseIterable {
+enum BuildingStyle: String, CaseIterable, Codable {
     case purple
     case pink
     case white

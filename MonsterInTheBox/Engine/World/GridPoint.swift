@@ -1,7 +1,7 @@
 import Foundation
 
 /// A cell on the tile grid. (0, 0) is the top-left; y grows downward.
-struct GridPoint: Hashable {
+struct GridPoint: Hashable, Codable {
     var x: Int
     var y: Int
 
@@ -24,7 +24,7 @@ struct GridPoint: Hashable {
     }
 }
 
-enum Direction: CaseIterable {
+enum Direction: CaseIterable, Codable {
     case up
     case down
     case left
