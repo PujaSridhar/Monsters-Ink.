@@ -1,29 +1,34 @@
 import Foundation
 import Observation
 
-/// The single source of truth for the game. Views read from it; only the root view feeds it input.
+/// The single source of truth. Views read from it; only `RootView` feeds it hardware input.
 ///
-/// Inputs (set by `RootView`): `hingeDidChange`, `sizeClassDidChange`, `scenePhaseDidChange`.
-/// Outputs (read by any view): `state`, `buildings`, `cityHealth`, `hinge`, `hapticIntensity`,
-/// `focusSeconds`, `buildProgress`, and the event counters for animations.
+/// - Inputs: `hingeDidChange`, `sizeClassDidChange`, `scenePhaseDidChange` (+ `simulate…` for debug).
+/// - World: `map` (roads, lots, towers) and `actors` (cats), stored separately so views that
+///   only draw the map don't redraw on every cat step.
+/// - Logic: each tick runs `builder` (Dev A) or `destroyer` (Dev B) depending on `state.mode`.
 @Observable
 final class KaijuEngine {
-    // MARK: City
+    // MARK: World
 
-    private(set) var buildings: [Building]
+    private(set) var map: CityMap
+    private(set) var actors: CityActors
+    private(set) var builder = BuilderBrain()
+    private(set) var destroyer = DestroyerBrain()
+
+    // MARK: Score
+
     private(set) var cityHealth: Double = 100
-
-    /// Seconds of uninterrupted focus in the current session. Reset by rampage.
+    /// Seconds of uninterrupted focus in the current session. Wiped by rampage.
     private(set) var focusSeconds: TimeInterval = 0
-    /// 0...1 progress toward the next floor during incubation. Resets on every state change.
-    private(set) var buildProgress: Double = 0
 
     // MARK: Event counters (use as `.onChange` / `.sensoryFeedback` / animation triggers)
 
     private(set) var floorsBuiltCount = 0
     private(set) var floorsDestroyedCount = 0
-    private(set) var lastChangedBuildingID: Int?
-    /// Set when the app returns from the background with decay applied. Clear with `dismissNeglectReport()`.
+    private(set) var blocksDevelopedCount = 0
+    private(set) var lastChangedLot: GridPoint?
+    /// Set when the app returns from the background with decay applied.
     private(set) var neglectReport: NeglectReport?
 
     // MARK: Inputs
@@ -35,28 +40,16 @@ final class KaijuEngine {
 
     // MARK: Debug / demo controls (driven by the State Visualizer)
 
-    /// When non-nil, overrides the physical hinge. Lets anyone develop on a regular simulator.
     private(set) var simulatedHinge: HingeReading?
-    /// When non-nil, overrides the split-screen detection.
     private(set) var simulatedMultitasking: Bool?
     var isDemoMode = true
 
     private let haptics = HapticsController()
-    private var destructionBudget: Double = 0
 
     init() {
-        buildings = Self.freshBuildings()
-    }
-
-    private static func freshBuildings() -> [Building] {
-        (0..<GameTuning.lotCount).map { index in
-            Building(
-                id: index,
-                style: BuildingStyle.allCases[index % BuildingStyle.allCases.count],
-                floors: 1,
-                maxFloors: Int.random(in: 5...9)
-            )
-        }
+        let world = CityWorld()
+        map = world.map
+        actors = world.actors
     }
 
     // MARK: Derived state
@@ -85,19 +78,20 @@ final class KaijuEngine {
         }
     }
 
-    /// 0...1, linear from 15° to 179°. Drives haptics and can drive visuals (red eyes, shake).
+    /// 0...1, linear from 15° to 179°. Drives haptics and visuals (shake, red tint).
     var hapticIntensity: Double {
         HapticsController.intensity(forAngle: hinge.angleDegrees)
     }
 
-    /// True when the device (or simulation) should show the outer, closed-display experience.
+    /// True when the closed, outer-display (building) experience should show.
     var showsClosedExperience: Bool { hinge.status == .closed && !isMultitasking }
 
-    var totalFloors: Int { buildings.reduce(0) { $0 + $1.floors } }
-
-    private var buildInterval: TimeInterval {
+    var buildInterval: TimeInterval {
         isDemoMode ? GameTuning.demoBuildInterval : GameTuning.realBuildInterval
     }
+
+    /// 0...1 progress toward the cat's next construction job.
+    var buildProgress: Double { builder.progress(buildInterval: buildInterval) }
 
     private var decaySecondsPerPoint: TimeInterval {
         isDemoMode ? GameTuning.demoDecaySecondsPerPoint : GameTuning.realDecaySecondsPerPoint
@@ -118,6 +112,7 @@ final class KaijuEngine {
     }
 
     func scenePhaseDidChange(isBackground: Bool, isActive: Bool) {
+        let previous = state
         if isBackground, !isBackgrounded {
             isBackgrounded = true
             backgroundedAt = .now
@@ -125,6 +120,7 @@ final class KaijuEngine {
             isBackgrounded = false
             applyNeglectDecay()
         }
+        stateMayHaveChanged(from: previous)
     }
 
     /// Pass nil to go back to the physical hinge.
@@ -147,11 +143,13 @@ final class KaijuEngine {
 
     /// Starts a fresh city and focus session.
     func resetCity() {
-        buildings = Self.freshBuildings()
+        let world = CityWorld()
+        map = world.map
+        actors = world.actors
+        builder = BuilderBrain()
+        destroyer = DestroyerBrain()
         cityHealth = 100
         focusSeconds = 0
-        buildProgress = 0
-        destructionBudget = 0
         neglectReport = nil
     }
 
@@ -168,19 +166,26 @@ final class KaijuEngine {
 
     func tick(dt: TimeInterval) {
         let current = state
-        switch current {
-        case .incubation:
+        guard current.mode != .paused else { return }
+
+        var world = CityWorld(map: map, actors: actors)
+        let context = BrainContext(state: current, dt: dt, buildInterval: buildInterval, intensity: hapticIntensity)
+        let events: [WorldEvent]
+        switch current.mode {
+        case .building:
             focusSeconds += dt
-            buildProgress += dt / buildInterval
-            if buildProgress >= 1 {
-                buildProgress = 0
-                buildFloor()
-            }
-        case .warning, .agitation, .rampage, .multitasking:
-            applyDamage(current.destructionPerSecond * dt)
-        case .neglect:
-            break
+            events = builder.tick(world: &world, context: context)
+        case .destroying:
+            events = destroyer.tick(world: &world, context: context)
+        case .paused:
+            events = []
         }
+        world.tickCitizens(dt: dt, isFleeing: current.isDestructive)
+
+        // Only assign when changed, so observers of `map` don't redraw on every cat step.
+        if world.map != map { map = world.map }
+        if world.actors != actors { actors = world.actors }
+        apply(events)
 
         if current == .warning || current == .agitation {
             haptics.update(intensity: hapticIntensity)
@@ -189,45 +194,39 @@ final class KaijuEngine {
 
     // MARK: Private
 
+    private func apply(_ events: [WorldEvent]) {
+        for event in events {
+            switch event {
+            case .floorBuilt(let lot):
+                cityHealth = min(100, cityHealth + GameTuning.healthPerFloor)
+                lastChangedLot = lot
+                floorsBuiltCount += 1
+            case .floorDestroyed(let lot):
+                cityHealth = max(0, cityHealth - GameTuning.healthPerDestroyedFloor)
+                lastChangedLot = lot
+                floorsDestroyedCount += 1
+            case .towerCollapsed:
+                haptics.slam()
+            case .blockDeveloped:
+                blocksDevelopedCount += 1
+            }
+        }
+    }
+
     private func stateMayHaveChanged(from previous: GameState) {
         let current = state
         guard current != previous else { return }
-        // Spec: every transition resets the build timer.
-        buildProgress = 0
-        destructionBudget = 0
-        if current == .rampage || current == .multitasking {
+        var world = CityWorld(map: map, actors: actors)
+        switch current.mode {
+        case .building: builder.enter(current, world: &world)
+        case .destroying: destroyer.enter(current, world: &world)
+        case .paused: world.actors.hero.stop()
+        }
+        if world.actors != actors { actors = world.actors }
+
+        if current.isKaiju {
             // Spec: rampage deletes session progress instantly.
             focusSeconds = 0
-            haptics.slam()
-        }
-    }
-
-    private func buildFloor() {
-        let candidates = buildings.indices.filter { buildings[$0].canGrow }
-        guard let index = candidates.randomElement() else { return }
-        buildings[index].floors += 1
-        buildings[index].rust = max(0, buildings[index].rust - 0.25)
-        cityHealth = min(100, cityHealth + GameTuning.healthPerFloor)
-        lastChangedBuildingID = buildings[index].id
-        floorsBuiltCount += 1
-    }
-
-    private func applyDamage(_ amount: Double) {
-        cityHealth = max(0, cityHealth - amount)
-        destructionBudget += amount
-        while destructionBudget >= GameTuning.damagePerFloor {
-            destructionBudget -= GameTuning.damagePerFloor
-            destroyFloor()
-        }
-    }
-
-    private func destroyFloor() {
-        let standing = buildings.indices.filter { !buildings[$0].isRubble }
-        guard let index = standing.randomElement() else { return }
-        buildings[index].floors -= 1
-        lastChangedBuildingID = buildings[index].id
-        floorsDestroyedCount += 1
-        if buildings[index].isRubble {
             haptics.slam()
         }
     }
@@ -240,10 +239,7 @@ final class KaijuEngine {
         let healthLost = min(cityHealth, secondsAway / decaySecondsPerPoint)
         guard healthLost > 0 else { return }
         cityHealth -= healthLost
-        let rust = 1 - cityHealth / 100
-        for index in buildings.indices {
-            buildings[index].rust = max(buildings[index].rust, rust)
-        }
+        map.applyRust(healthLost / 100)
         neglectReport = NeglectReport(secondsAway: secondsAway, healthLost: healthLost)
     }
 }

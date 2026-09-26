@@ -1,88 +1,111 @@
-# Dev A — Phone CLOSED (Outer Display)
+# Dev A — Phone CLOSED: The Builder Cat (Outer Display)
 
-You own **Act 1: Incubation** and **Act 4: Neglect**. That's everything the user sees on the 5.4" outer display while the phone is folded shut, plus the "welcome back" aftermath after the app was backgrounded.
+You own **Act 1: Incubation** and **Act 4: Neglect**. That's the top-down 8-bit town on the 5.4" outer display, where the hero cat walks the roads and builds towers while the phone stays shut, plus the rusted aftermath after the app was backgrounded.
 
-Dev B owns everything shown while the phone is open. You never edit the same files, so you can both work at the same time without merge conflicts.
-
----
-
-## Your files (only edit these)
-
-| File | What it is | Status |
-| --- | --- | --- |
-| `MonsterInTheBox/Closed/ClosedGameView.swift` | Outer display: focus timer, Bite building, city, cats | Working baseline |
-| `MonsterInTheBox/Closed/NeglectReportView.swift` | Sheet shown on return from background: acid rain + rusted city | Working baseline |
-| `MonsterInTheBox/Closed/*.swift` | Any new file you add here is picked up automatically | — |
-
-The project uses **folder-synced groups**, so adding a new `.swift` file to `Closed/` needs no project-file edits.
-
-**Don't edit** `Engine/`, `Shared/`, or `App/RootView.swift` without telling Dev B. If you need a new engine value, add it in one small commit and tell your teammate.
+Dev B owns the open phone (the cat destroying the city). **You never touch the same files.** Your logic and views live in `Closed/`, theirs in `Open/`.
 
 ---
 
-## How your screen gets shown
+## How the game is put together
 
-`RootView` shows `ClosedGameView` whenever `engine.showsClosedExperience` is true (hinge `.closed` and not in split screen). It shows `NeglectReportView` as a sheet whenever `engine.neglectReport` is non-nil. You don't have to route anything yourself.
+```
+MonsterInTheBox/
+├── App/            RootView: routes closed ↔ open, feeds hinge/size/scene input      (shared, frozen)
+├── Engine/
+│   ├── Core/       KaijuEngine, GameState, GameTuning, haptics, hinge                (shared, frozen)
+│   └── World/      Pure game model: grid, roads, lots, cats, pathfinding             (shared, frozen)
+├── Shared/
+│   ├── World/      Rendering layers: WorldStage, GroundLayer, BuildingLayer, ActorView (shared)
+│   ├── Assets/     SpriteSheet, GameAsset, PixelSprite                               (shared)
+│   ├── Effects/    SpriteKit acid rain / dust, fold glow                             (shared)
+│   └── HUD/        State Visualizer + debug drawer                                   (shared)
+├── Closed/         ◀── YOU
+│   ├── Logic/BuilderBrain.swift        what the cat does while closed
+│   ├── Views/BuilderActorsLayer.swift  how builder cats are drawn
+│   ├── Views/FocusHUD.swift            timer + progress + city size
+│   ├── Views/NeglectReportView.swift   "while you were away" sheet
+│   └── ClosedGameView.swift            composes the screen
+└── Open/           ◀── Dev B (DestroyerBrain, DestroyerActorsLayer, MonsterNest, …)
+```
 
-## Engine API you read (via `@Environment(KaijuEngine.self) private var engine`)
+**Separation rules:**
+- **Logic vs. views.** `BuilderBrain` decides *where the cat goes and what it builds*. It mutates the model only. Views only draw the model.
+- **Map vs. cats.** The city (`CityMap`: roads, lots, towers) and the cats (`CityActors`: hero plus citizens) are separate engine properties and separate layers. Drawing a cat never redraws the map.
+- **Shared layers are frozen during the sprint.** If you need a change in `Engine/` or `Shared/`, make it one small commit and tell Dev B.
+- New files dropped into `Closed/` are picked up automatically (folder-synced project). No project-file edits needed.
 
-| Property | Type | Use it for |
-| --- | --- | --- |
-| `engine.state` | `GameState` | `.incubation` on your screen. `.monsterForm`, `.title`, `.subtitle`, `.symbolName` |
-| `engine.buildings` | `[Building]` | Pass to `CitySkyline(buildings:tileSize:)` |
-| `engine.focusSeconds` | `TimeInterval` | The focus timer (resets on rampage) |
-| `engine.buildProgress` | `Double` 0…1 | Progress toward the next floor |
-| `engine.floorsBuiltCount` | `Int` | Trigger for animations and `.sensoryFeedback` when a floor is added |
-| `engine.lastChangedBuildingID` | `Int?` | Which tower just grew (for highlighting it or moving Bite to it) |
-| `engine.cityHealth` | `Double` 0…100 | City health meter |
-| `engine.totalFloors` | `Int` | "Your city has N floors" |
-| `engine.neglectReport` | `NeglectReport?` | `secondsAway` and `healthLost` for the aftermath sheet |
-| `building.rust` | `Double` 0…1 | Already rendered by `BuildingView` (brown tint and desaturation) |
+## The world (top-down, 8-bit, 2D grid)
 
-## Shared building blocks (already built, just use them)
+`CityLayout` is a 13 × 19 tile grid. Roads run along every 6th row and column; between them are 5 × 5 blocks. Each block's bottom row is 5 lots facing the road. Towers stand on a lot and grow **upward** into the block (roof + middles + base), up to 4 floors, like buildings in Pokémon towns.
 
-- `BiteView(form: .peaceful)`: the chibi, with bobbing and facing animations. `.sleeping` uses the Blue Drool sprite with a "zzz".
-- `CitySkyline(buildings:tileSize:)`: towers made of Kenney tiles on a pavement street.
-- `BuildingView(building:tileSize:)`: a single tower.
-- `CatCrowd(isFleeing:catSize:)`: all six cat sheets walking along the street.
-- `AnimatedSprite(sheet: .catBox)`: the cat popping out of a box (the logo, see below).
-- `EffectsLayer(acidRain: 0...1)`: SpriteKit acid-rain particles.
-- `PixelSprite(asset:)`, `CityTile(index:size:)`, `SpriteSheet`: raw sprite access.
+- **Movement is 2D and grid-restricted.** Cats move one tile at a time in 4 directions, only on developed road tiles (`CityWorld.WalkRule.roads`), using BFS pathfinding (`Pathfinder`). The view glides them between tiles.
+- **The city expands.** It starts with one developed block surrounded by grass and trees. When every tower is at least `GameTuning.floorsToExpand` (2) floors, the next block in `CityLayout.expansionOrder` opens: new roads appear, 5 new lots appear, and a new citizen cat moves in. Six blocks in total.
+
+## What `BuilderBrain` does now (working baseline)
+
+1. **Wandering:** the hero cat strolls to random nearby road tiles while the build timer fills.
+2. **Job:** when `buildInterval` elapses (2 s in demo mode, 5 min for real), it picks the shortest tower (nearest first) and paths to the road tile in front of it.
+3. **Building:** it faces the lot, plays the pounce animation with a bouncing hammer for `GameTuning.buildDuration`, then adds a floor and emits `.floorBuilt`.
+4. **Expanding:** if every tower has reached the threshold, it develops the next block and emits `.blockDeveloped`.
+
+The engine turns those events into health, counters, and haptics. The brain never touches them directly.
+
+## Engine API you read (`@Environment(KaijuEngine.self) private var engine`)
+
+| Property | Use it for |
+| --- | --- |
+| `engine.map` | Pass to `WorldStage(map:)`. Also `totalFloors`, `developedBlocks`, `lots` |
+| `engine.actors.hero` / `.citizens` | Positions, `facing`, `activity`, `isMoving` |
+| `engine.builder.phase` / `.targetLot` | What the builder is doing and where it's heading |
+| `engine.buildProgress` | 0…1 toward the next job |
+| `engine.focusSeconds` | Focus timer (wiped by a rampage) |
+| `engine.floorsBuiltCount`, `blocksDevelopedCount`, `lastChangedLot` | Animation and haptic triggers |
+| `engine.neglectReport` | `secondsAway`, `healthLost` for the aftermath sheet |
+
+## Shared building blocks
+
+- `WorldStage(map:) { metrics in YourActorsLayer(metrics:) }`: ground + towers + your actors layer, scaled to fit.
+- `ActorView(actor:metrics:scale:)`: places and animates any `CatActor` on the grid.
+- `CatSprite(look:animation:facesLeft:)`: a bare cat. Animations: `.idle` (Cat0), `.sleep` (Cat1), `.walk` (Cat2), `.pounce` (Cat3), `.groom` (Cat4).
+- `metrics.rect(of:)` / `metrics.center(of:)`: grid cell → points, for anything you overlay.
+- `TileArt`: tile indices for grass, roads, pavement, bushes, palms, cars, and each tower style.
+- `EffectsLayer(acidRain:)`: SpriteKit rain.
 
 ---
 
-## Tasks (in priority order, about 50 minutes)
+## Tasks (priority order)
 
-### Must-have (first 25 minutes)
-1. **Bite walks to the tower he's building.** When `floorsBuiltCount` changes, animate Bite's x-offset to the tower with `lastChangedBuildingID` (use `.bouncy`). Use `onGeometryChange` or evenly divided lot widths (`GameTuning.lotCount` lots).
-2. **"Hammer" pop.** On each new floor, show a quick `hammer.fill` symbol with `.symbolEffect(.bounce)` or a small burst above that tower.
-3. **Outer display layout check.** In the simulator, pick iPhone Duo and set Fold to Closed. Make sure the timer, city, and cats all fit in portrait and landscape. The system status bar sits in a vertical strip on the outer display, so keep content away from that edge.
-4. **Title / focus start.** Show the cat-in-box logo (`AnimatedSprite(sheet: .catBox, framesPerSecond: 2)`) above the timer with the text "Keep the box closed".
+### Must-have
+1. **Construction juice.** When `floorsBuiltCount` changes, pop a dust puff or sparkle at `lastChangedLot` (use `metrics.center(of:)`). Make the new top floor "drop in" (in `BuilderActorsLayer`, overlay a tile that animates from above).
+2. **Block-unlock moment.** On `blocksDevelopedCount` change, flash the new block's tiles and show a banner like "New district unlocked!" in `ClosedGameView`.
+3. **Outer display layout pass.** In the iPhone Duo simulator, set Fold to Closed and check portrait and landscape. The status bar sits in a vertical strip on the outer display, so keep the HUD clear of that edge. Tune `WorldStage` padding if the map is too small.
+4. **Paw-print trail.** Leave fading `Cat5` paw prints (frame 1) on the last few tiles the hero walked. Keep the trail in your actors layer, not the engine.
 
-### Should-have (next 15 minutes)
-5. **Neglect sheet polish.** Count `healthLost` up from 0 with `.contentTransition(.numericText())`, and make the acid rain fade out after 3 seconds.
-6. **Tower tiers.** Every 5 minutes of focus (or 15 seconds in demo mode), swap to a fancier style: map `focusSeconds` to `BuildingStyle` for new floors. This is the spec's "swap the city texture based on focus time". It needs a tiny engine change, so coordinate with Dev B.
-7. **Day/night sky.** Tint the background gradient by `focusSeconds`.
+### Should-have
+5. **Neglect sheet polish.** Count `healthLost` up with `.contentTransition(.numericText())`, and fade the rain out after 3 s.
+6. **Parked cars and street life.** Draw `TileArt.cars` on some road tiles next to lots. Make it a new `Closed/Views/StreetPropsLayer.swift` and insert it into your `WorldStage` actors closure *below* the cats.
+7. **Smarter builder** (in `BuilderBrain` only): chat with a citizen it passes (both stop, face each other, 1 s), or nap (`.sleeping`) if nothing's left to build.
 
 ### Stretch
-8. Add parked cars and trees from the tilemap between towers (`CitySkyline.carTiles`, `treeTiles`, and check the indices against `assests/Pico-8 City Kenney/Preview.png`).
-9. Use `SlimeNeutral` / `BatNeutral` / `RatNeutral` as friendly "construction crew" walking with Bite during incubation.
+8. A day/night tint driven by `focusSeconds`.
+9. Tower tiers: newer blocks use a fancier `BuildingStyle`. This is the "swap the city texture based on focus time" idea from the spec, and it needs a one-line change in `CityMap.developNextBlock`, so tell Dev B.
 
 ---
 
 ## How to test
 
-- **Any simulator:** tap the State Visualizer HUD at the top to open the debug drawer. Turn on **Simulate hinge**, leave the angle at 0°, and you're in Incubation. Keep **Demo speed** on so floors build every 3 seconds instead of 5 minutes.
-- **Neglect:** swipe home (or Cmd-Shift-H), wait about 10 seconds, then reopen. With demo speed on, the decay rate is 1 health per second, and the sheet appears.
-- **iPhone Duo simulator:** use Bitrig's Fold control → Closed.
+- **Any simulator:** tap the State Visualizer HUD to open the debug drawer. Turn on **Simulate hinge** and leave it at 0° for Incubation. **Demo speed** (on by default) builds every 2 seconds, so the first block fills in about a minute.
+- **Neglect:** swipe home, wait about 10 s, and reopen. The decay is 1 health per second in demo mode.
+- **iPhone Duo simulator:** Bitrig's Fold control → Closed.
+- **Reset City** in the debug drawer starts over.
 
 ## Asset map (your side)
 
 | Asset | Where it's used |
 | --- | --- |
-| `Bite` (Cute Monsters Big Belly Right) | Bite the architect |
-| `BiteSleeping` (Cute Monsters Blue Drool) | Neglect sheet |
-| `Cat0`–`Cat5` | Citizens walking the street |
-| `CatBox` | Logo: the monster in the box (frame 0 = closed box). Dev B uses frame 1, the cat peeking out, when the phone opens |
-| `CityTiles` | Every tower, rubble, and the street |
-| `CitySample` | Optional title backdrop |
+| `Cat0`, `Cat2`, `Cat3` | Hero cat idle / walking / hammering |
+| `Cat1` | Sleeping cat in the neglect sheet |
+| `Cat4` | Citizens grooming while idle |
+| `Cat5` | Paw prints (target marker; trail is task 4) |
+| `CityTiles` | Grass, roads, yards, towers, rubble, props |
+| `CatBox` | Logo: the monster in the box (frame 0 = closed box) |

@@ -2,11 +2,6 @@ import SwiftUI
 
 /// Every image in Assets.xcassets. Source files live in /assests.
 enum GameAsset: String, CaseIterable {
-    /// "Cute Monsters Big Belly Right" — Bite, the chibi architect. Scaled up + tinted = kaiju.
-    case bite = "Bite"
-    /// "Cute Monsters Blue Drool" — Bite asleep during neglect.
-    case biteSleeping = "BiteSleeping"
-
     case slimeNeutral = "SlimeNeutral"
     case slimeAngry = "SlimeAngry"
     case slimeHurt = "SlimeHurt"
@@ -19,18 +14,16 @@ enum GameAsset: String, CaseIterable {
 
     /// 32×64 sheet, 2 frames: an empty box, then a cat popping out. The "Monster in the Box" logo.
     case catBox = "CatBox"
-    /// Cat animation strips, 32 px wide, 32×32 frames stacked vertically.
-    case cat0 = "Cat0"
-    case cat1 = "Cat1"
-    case cat2 = "Cat2"
-    case cat3 = "Cat3"
-    case cat4 = "Cat4"
-    case cat5 = "Cat5"
+    /// Cat animation strips, 32 px wide, 32×32 frames stacked vertically. See `CatAnimation`.
+    case cat0 = "Cat0" // idle, tail swish (4 frames)
+    case cat1 = "Cat1" // sit → lie down to sleep (7 frames)
+    case cat2 = "Cat2" // stepping, used as the walk cycle (6 frames)
+    case cat3 = "Cat3" // pounce, used for hammering and stomping (6 frames)
+    case cat4 = "Cat4" // grooming / stretching (26 frames)
+    case cat5 = "Cat5" // icons: arrow, small paw, big paw (3 frames)
 
     /// Kenney Pico-8 City packed tilemap: 24 × 15 tiles, 8 × 8 px, no spacing.
     case cityTiles = "CityTiles"
     /// Kenney's sample city scene, handy as a title-screen backdrop.
     case citySample = "CitySample"
-
-    static let cats: [GameAsset] = [.cat0, .cat1, .cat2, .cat3, .cat4, .cat5]
 }
