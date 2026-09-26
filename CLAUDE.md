@@ -1,4 +1,4 @@
-# CLAUDE.md — Agent Guide for Monster in the Box
+# CLAUDE.md — Agent Guide for Monster, Ink.
 
 Read this before changing anything. It is the full context for continuing development. Read [README.md](README.md) for the story, and [docs/DEV_A_CLOSED.md](docs/DEV_A_CLOSED.md) / [docs/DEV_B_OPEN.md](docs/DEV_B_OPEN.md) for the per-developer task backlogs.
 

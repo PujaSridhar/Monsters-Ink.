@@ -23,13 +23,28 @@ struct WorldStage<Actors: View>: View {
                 actors(metrics)
             }
             .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
-            }
-            .shadow(color: .black.opacity(0.3), radius: 12, x: 0, y: 6)
+            .modifier(DioramaFrame(isEnabled: !fillsScreen))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+/// Rounded corners, a thin border, and a drop shadow for the letterboxed "diorama" look.
+/// Skipped when the world fills the screen edge to edge.
+private struct DioramaFrame: ViewModifier {
+    var isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                }
+                .shadow(color: .black.opacity(0.3), radius: 12, x: 0, y: 6)
+        } else {
+            content
         }
     }
 }
@@ -45,10 +60,12 @@ struct WildernessMistLayer: View {
             ForEach(CityLayout.expansionOrder, id: \.self) { block in
                 if !map.developedBlocks.contains(block) {
                     let originRect = metrics.rect(of: block.origin)
-                    let blockSpan = CGFloat(CityLayout.blockSize) * metrics.tileSize
+                    let blockWidth = CGFloat(CityLayout.blockSize) * metrics.tileWidth
+                    let blockHeight = CGFloat(CityLayout.blockSize) * metrics.tileHeight
+                    let blockSpan = min(blockWidth, blockHeight)
                     let centerPoint = CGPoint(
-                        x: originRect.origin.x + blockSpan / 2,
-                        y: originRect.origin.y + blockSpan / 2
+                        x: originRect.origin.x + blockWidth / 2,
+                        y: originRect.origin.y + blockHeight / 2
                     )
 
                     RoundedRectangle(cornerRadius: 8)
@@ -64,7 +81,7 @@ struct WildernessMistLayer: View {
                                 endRadius: blockSpan * 0.72
                             )
                         )
-                        .frame(width: blockSpan, height: blockSpan)
+                        .frame(width: blockWidth, height: blockHeight)
                         .position(centerPoint)
                         .transition(.opacity.combined(with: .scale(scale: 1.08)))
                 }

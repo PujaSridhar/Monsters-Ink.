@@ -1,8 +1,10 @@
-# Monster in the Box
+# Monster, Ink.
 
 **A focus game for iPhone Duo that turns the hinge into a trap for your phone habit.**
 
 Keep the phone folded shut and a little pixel cat builds you a city. Crack it open and the cat gets upset. Open it all the way, or snap another app into split screen, and the cat turns into a giant kaiju and flattens everything you built.
+
+Inspired by **Focus Friend by Hank Green**: a companion that thrives while you stay off your phone. Here, the companion is a cat, and the phone's hinge decides whether it builds or destroys.
 
 Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creative use of what's unique to the Duo: the two displays, the fold states, and side-by-side multitasking.
 
@@ -89,6 +91,8 @@ archive/removed/   Retired files kept for reference (not compiled)
 ```
 
 ## Art and credits
+
+- **Inspiration:** Focus Friend by Hank Green.
 
 - **Cats** (`assests/cats`): all characters: the hero, citizens, and the kaiju (the hero scaled up).
 - **City tiles:** [Kenney](https://kenney.nl) Pico-8 City, CC0.

@@ -11,8 +11,11 @@ struct ClosedGameView: View {
 
     var body: some View {
         ZStack {
-            // Dynamic open-world sky, moving clouds, and mountain horizon
-            OpenWorldAtmosphereView()
+            // The world fills the whole outer display, edge to edge.
+            WorldStage(map: engine.map, fillsScreen: true) { metrics in
+                BuilderActorsLayer(metrics: metrics)
+            }
+            .ignoresSafeArea()
 
             VStack(spacing: 12) {
                 // Focus HUD with countdown or city status
@@ -25,13 +28,9 @@ struct ClosedGameView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                // Centered open-world diorama stage
-                WorldStage(map: engine.map) { metrics in
-                    BuilderActorsLayer(metrics: metrics)
-                }
-                .padding(.horizontal, 10)
+                Spacer()
 
-                // Focus duration picker & session controls
+                // Focus duration picker & session controls, floating over the map
                 FocusSessionControlsView()
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)

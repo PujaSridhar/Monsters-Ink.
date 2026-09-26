@@ -108,4 +108,4 @@ The engine turns those events into health, counters, and haptics. The brain neve
 | `Cat4` | Citizens grooming while idle |
 | `Cat5` | Paw prints (target marker; trail is task 4) |
 | `CityTiles` | Grass, roads, yards, towers, rubble, props |
-| `CatBox` | Logo: the monster in the box (frame 0 = closed box) |
+| `CatBox` | Logo: a monster hiding in a box (frame 0 = closed box) |

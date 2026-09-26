@@ -12,7 +12,7 @@ enum GameAsset: String, CaseIterable {
     case ratAngry = "RatAngry"
     case ratHurt = "RatHurt"
 
-    /// 32×64 sheet, 2 frames: an empty box, then a cat popping out. The "Monster in the Box" logo.
+    /// 32×64 sheet, 2 frames: an empty box, then a cat popping out. The app logo.
     case catBox = "CatBox"
     /// Cat animation strips, 32 px wide, 32×32 frames stacked vertically. See `CatAnimation`.
     case cat0 = "Cat0" // idle, tail swish (4 frames)
