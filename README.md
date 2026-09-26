@@ -13,9 +13,9 @@ Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creati
 | Act | What the user does | What happens |
 | --- | --- | --- |
 | **1. Incubation** | Rests the phone closed to focus | On the outer display, the hero cat walks the roads of a top-down 8-bit town and builds towers floor by floor. When every tower is tall enough, a new district unlocks and the city spreads across the grass. |
-| **2. Provocation** | Cracks the hinge open | The cat stops building and stares. A cat peeks out of a box with a text-message bubble over its eyes, begging "Psst… close the phone?" Floors start crumbling. Haptics pulse, getting stronger the wider the hinge opens. |
-| | Opens to about 90° | The cat is visibly annoyed: it paces erratically and glows red, and the box cat shakes and snaps "I SAID close it." Floors fall faster. |
-| **3. Rampage** | Opens flat (180°) | The cat becomes a **kaiju** (the same cat, scaled up 4×). It ignores the roads, stomps tower after tower into rubble while citizen cats flee, and the focus session is wiped. |
+| **2. Provocation** | Cracks the hinge open | The city fills the entire inner display, edge to edge across the fold, but it goes **dark**. The cat is hiding: **only its big red eyes** glow and blink out of the darkness. Nothing breaks yet. Haptics pulse, getting stronger the wider the hinge opens. |
+| | Opens to 90° or more | The one cat turns into a **1.5× kaiju**. It hunts down and **eats the helper cats** that built the city ("CHOMP!") and smashes towers. The survivors flee. |
+| **3. Rampage** | Opens flat (180°) | The kaiju destroys much faster, and the focus session is wiped. |
 | **4. Neglect** | Sends the app to the background | The user never sees it happen, but acid rain falls while they're away. When they come back, the city has lost health and the buildings have rusted. |
 | **5. Multitasking Trap** | Snaps another app into split screen | Instant kaiju rampage. Leaving split screen checks the hinge again: flat keeps the rampage going, cracked returns to warning, folded returns to building. |
 
@@ -24,9 +24,9 @@ Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creati
 | State | Hinge | Screen | Cat | City |
 | --- | --- | --- | --- | --- |
 | Incubation | Closed | Full screen | Builder cat walking the roads | Builds, then expands |
-| Warning | Cracked (< 75°) | Full screen | Cat freezes and stares; the box cat pleads | Slow tremors |
-| Agitation | ~90° (≥ 75°) | Full screen | Cat paces erratically; the box cat is annoyed | Faster tremors |
-| Rampage | 180° / fully open | Full screen | Kaiju cat (4×) | Stomped rapidly |
+| Warning | Cracked (< 75°) | Full screen | Hidden: only big red eyes in the dark | Untouched (a warning only) |
+| Agitation | ~90° (≥ 75°) | Full screen | 1.5× kaiju, eating helper cats | Destroyed moderately |
+| Rampage | 180° / fully open | Full screen | 1.5× kaiju, eating helper cats | Stomped rapidly |
 | Neglect | Any | Background | Asleep (seen afterward) | Rusts and decays over time |
 | Multitasking | Any (open) | Split screen | Kaiju cat | Stomped rapidly |
 
@@ -35,14 +35,14 @@ Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creati
 ## How it works
 
 - **Hinge:** `onHingeChange` → `DeviceHingeContext.hinge` (`status` + `angle`) → `KaijuEngine` decides the state.
-- **Two displays:** closed = outer display (the builder game). Open = inner display, using `ArrangementView` to split the **city map** from the **Monster Nest** (the cat in the box).
-- **Fold gap:** `ReservedRegion(.division)` is painted as a glowing red crack.
+- **Two displays:** closed = outer display (the builder game). Open = inner display, where the **city is stretched edge to edge** across both halves of the fold.
+- **Fold region:** `ReservedRegion(.division)` moves the status banner to one side of the fold so its text never crosses the crease.
 - **Split screen:** a compact horizontal size class *while the phone is open* means multitasking.
 - **Background:** `scenePhase`. Decay is 1 health per 60 s away (1 per second in demo mode).
 - **Haptics:** `UIImpactFeedbackGenerator` pulses from 15°, scaling linearly to full strength at 179°.
 - **Effects:** SpriteKit particles (acid rain, dust, debris).
 
-The world is a 13 × 19 tile grid. Roads run every 6th row and column, with 5 × 5 blocks between them. Cats move one tile at a time in 4 directions, only on roads, using BFS pathfinding. Towers stand on the bottom row of each block and grow upward. The city starts with one block and unlocks five more.
+The world is a 19 × 19 tile grid (3 × 3 blocks). Roads run every 6th row and column, with 5 × 5 blocks between them. Cats move one tile at a time in 4 directions, only on roads, using BFS pathfinding. Towers stand on the bottom row of each block and grow upward. The city starts with the bottom-center block, which straddles the fold, and unlocks eight more.
 
 ---
 
@@ -90,7 +90,7 @@ archive/removed/   Retired files kept for reference (not compiled)
 
 ## Art and credits
 
-- **Cats** (`assests/cats`): all characters: the hero, citizens, the kaiju, and the cat in the box.
+- **Cats** (`assests/cats`): all characters: the hero, citizens, and the kaiju (the hero scaled up).
 - **City tiles:** [Kenney](https://kenney.nl) Pico-8 City, CC0.
-- **Nest minions** (bat, rat, slime): "Sprite Pack Monsters A" by **Red Chan / WithoutPenorPaper**, CC BY-NC 4.0. Credit is required and commercial use is not allowed.
+- **Sprite Pack Monsters A** (bat, rat, slime) by **Red Chan / WithoutPenorPaper**, CC BY-NC 4.0. It's still in the asset catalog but **no longer shown**.
 - The two "Cute Monsters" sprites were deliberately removed. There is no dungeon pack in the repo.

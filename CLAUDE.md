@@ -17,7 +17,7 @@ Priorities, in order:
 - **The art folder is `assests/`** (misspelled). Don't rename it; the docs reference it.
 - **Xcode 27.1 / iOS 27.1 SDK.** The deployment target is **iOS 27.1**, so Duo APIs need no availability guards.
 - **The project uses synchronized folder groups** (`PBXFileSystemSynchronizedRootGroup`, objectVersion 77). Any file added under `MonsterInTheBox/` is compiled automatically. **Never hand-edit `project.pbxproj` to add files.**
-- **Build settings:** Swift 6, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, approachable concurrency. Everything is MainActor by default. Protocol conformances used off the main actor (for example `Shape`) must be marked `nonisolated` (see `BubbleTail` in `PeekingCatView.swift`).
+- **Build settings:** Swift 6, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, approachable concurrency. Everything is MainActor by default. Protocol conformances used off the main actor (for example `Shape`) must be marked `nonisolated` (see `BubbleTail` in `Open/Views/MessageBubble.swift`).
 - **`rm` may be blocked** by the sandbox. Retire files by moving them to `archive/removed/` (outside the target).
 - **No git commits, branches, or pushes** unless the user explicitly asks.
 - **Building:** in Bitrig, use its build tool. Otherwise run `xcodebuild -project MonsterInTheBox.xcodeproj -scheme MonsterInTheBox -destination 'generic/platform=iOS Simulator' build`. Always build after changes.
@@ -40,7 +40,7 @@ MonsterInTheBox/
 │   │   └── NeglectReport.swift
 │   └── World/
 │       ├── GridPoint.swift        cell + 4-way Direction
-│       ├── CityLayout.swift       fixed 13×19 grid, roads every 6th row/col, BlockID, expansion order
+│       ├── CityLayout.swift       fixed 19×19 grid (3×3 blocks), roads every 6th row/col, BlockID, expansion order
 │       ├── Lot.swift              tower plot (floors, rust, rubble) + BuildingStyle
 │       ├── CityMap.swift          developed blocks, roads, lots; Ground; build/remove/rust/expand
 │       ├── Pathfinder.swift       BFS
@@ -51,16 +51,19 @@ MonsterInTheBox/
 │   ├── World/                     WorldStage (layers), GroundLayer (Canvas), BuildingLayer/TowerSprite,
 │   │                              CatSprite/CatAnimation/ActorView, TileArt (tile indices), WorldMetrics
 │   ├── Assets/                    GameAsset enum, SpriteSheet (cached cropping), PixelSprite/CityTile/AnimatedSprite
-│   ├── Effects/                   EffectsScene/EffectsLayer (SpriteKit), HingeGapGlow (ReservedRegion .division)
+│   ├── Effects/                   EffectsScene/EffectsLayer (SpriteKit), HingeGapGlow (unused now; red fold line was removed)
 │   └── HUD/StateVisualizer.swift  status HUD + debug drawer (simulate hinge/split, demo speed, reset)
 ├── Closed/                        DEV A: phone closed (building)
 │   ├── Logic/BuilderBrain.swift
 │   ├── Views/BuilderActorsLayer.swift, FocusHUD.swift, NeglectReportView.swift
 │   └── ClosedGameView.swift
 └── Open/                          DEV B: phone open (destroying)
-    ├── Logic/DestroyerBrain.swift, CatMood.swift, GameState+Open.swift, Minion.swift
-    ├── Views/CityBoard.swift, DestroyerActorsLayer.swift, MonsterNest.swift, PeekingCatView.swift
-    └── OpenGameView.swift         ArrangementView { CityBoard } secondary: { MonsterNest }
+    ├── Logic/DestroyerBrain.swift (hunt + eat cats, smash towers), CatMood.swift,
+    │         GameState+Open.swift (catMood, showsOnlyEyes, heroScale)
+    ├── Views/CityBoard.swift (WorldStage fillsScreen, edge to edge), DestroyerActorsLayer.swift
+    │         (dark + HidingEyes at warning; 1.5× kaiju, citizens, CHOMP! pop, bubble otherwise),
+    │         HidingEyes.swift, MessageBubble.swift, StatusBanner.swift (fold-aware via ReservedRegion)
+    └── OpenGameView.swift         CityBoard + red mood tint + banner (hidden at warning)
 ```
 
 ### Data flow (one tick, 10 Hz)
@@ -82,9 +85,15 @@ Checked in this order:
 1. Backgrounded → `.neglect`
 2. `isMultitasking` → `.multitasking`, where `isMultitasking` = compact width **and** hinge not closed. The closed outer display is also compact, so without that check, closing the phone would trigger a rampage.
 3. Hinge closed → `.incubation`
-4. `.fullyOpen` or ≥ 178° → `.rampage`
-5. ≥ 75° → `.agitation`
-6. Otherwise → `.warning`
+4. `.fullyOpen` or ≥ 178° → `.rampage` (kaiju at 1.5×, smashes at 3 floors/s)
+5. ≥ 75° → `.agitation` (kaiju at 1.5×, smashes at 0.5 floors/s)
+6. Otherwise → `.warning`: the cat hides. Nothing is destroyed, every cat freezes (`GameState.freezesCitizens`), the city goes dark, and **only big red blinking eyes** (`HidingEyes`) are visible.
+
+**One cat, one kaiju.** There's a single hero cat. On the open phone it becomes the kaiju (1.5×) and **hunts the citizen cats that helped build the city**:
+- **Eating:** any citizen within `GameTuning.huntRadius` (7) is chased, and one within `eatRadius` (1) is eaten. That emits `WorldEvent.catEaten`; the engine then bumps `catsEatenCount` and `lastEatenPosition`, and fires a haptic slam.
+- **Smashing:** with nobody to chase, it smashes the nearest tower.
+- **Fleeing:** citizens flee to roads far from the kaiju (`tickCitizens(fleeingFrom:)`).
+- **Replacements:** a city starts with `startingCitizens` (3) helpers, plus one per developed block. Eaten cats are **not** replaced otherwise (a possible Dev A task).
 
 Entering a kaiju state wipes `focusSeconds` and fires a haptic slam. Every state change calls the incoming brain's `enter(_:world:)`, which also resets the build timer. Split-screen recovery needs no special code: the state is re-derived from the current hinge.
 
@@ -93,7 +102,7 @@ Entering a kaiju state wipes `focusSeconds` and fires a haptic slam. Every state
 1. **The engine is the single source of truth.** Views never mutate game state. Only `RootView` feeds input, and only `StateVisualizer` uses `simulate…` / `resetCity`.
 2. **Brains mutate only `CityWorld`** (map + actors) and report what happened as `WorldEvent`s. Health, counters, and haptics are applied by the engine in `apply(_:)`.
 3. **Map and actors stay separate.** They're separate engine properties, separate layers, and assigned back only when changed (`if world.map != map`), so the ground Canvas doesn't redraw on every cat step.
-4. **Movement is on the grid.** One tile per step, 4-way, via `CatActor.walk(path)` + `advance(dt:)`. Normal cats use `WalkRule.roads`; only the kaiju uses `.anywhere`. The view (`ActorView`) interpolates between tiles with `.linear(duration: stepDuration)`.
+4. **Movement is on the grid.** One tile per step, 4-way, via `CatActor.walk(path)` + `advance(dt:)`. Re-routing mid-walk keeps the step timer, so chasing works. Normal cats use `WalkRule.roads`; only the smashing hero (90°+) uses `.anywhere`. The view (`ActorView`) interpolates between tiles with `.linear(duration: stepDuration)`.
 5. **Rendering layers go ground → buildings → actors** inside `WorldStage`. Each mode passes its own actors layer through the `WorldStage { metrics in … }` closure. New visual things belong in a new layer view, not in the engine.
 6. **Pixel art is drawn with `.interpolation(.none)`** (`SpriteSheet.frame` and `PixelSprite` already do this). In SpriteKit, use `filteringMode = .nearest`.
 7. **Every number goes in `GameTuning`.**
@@ -107,7 +116,7 @@ The docs search may not index these yet. These signatures were read from the SDK
 - `DeviceHingeContext.hinge: DeviceHinge?` (nil on devices without a hinge)
 - `DeviceHinge.status: DeviceHinge.Status` and `DeviceHinge.angle: Angle`
 - `DeviceHinge.Status` is a **struct** with `.closed`, `.partiallyOpen`, and `.fullyOpen`. It **can't be switched exhaustively**, so convert it with `HingeStatus(_:)`.
-- `ArrangementView(primary:secondary:)` plus `.arrangementViewStyle(.split / .overlay)`, and the `overlayArrangementZIndex` environment value. Put backgrounds on or behind the ArrangementView, never inside the panes. Never nest it inside `ScrollView`, `List`, or `NavigationSplitView`.
+- `ArrangementView(primary:secondary:)` plus `.arrangementViewStyle(.split / .overlay)`, and the `overlayArrangementZIndex` environment value. **Not currently used:** the user wants the city to span the entire screen, so the open view is one full-screen `CityBoard` (`WorldStage(fillsScreen: true)` stretches tiles to fill; `WorldMetrics` has `tileWidth`/`tileHeight`, and sprites use the square `tileSize`). Put backgrounds on or behind the ArrangementView, never inside the panes. Never nest it inside `ScrollView`, `List`, or `NavigationSplitView`.
 - `GeometryProxy.reservedRegions(kind: .division | .occlusion, options:, layoutDirectionBehavior:) -> [ReservedRegion]`. A `ReservedRegion` has `frame`, `margins`, and `isActive`. `.division` is the fold, and it's active only while partially folded.
 - Hinge data is for **interactions and effects**. Layout uses size classes, `ArrangementView`, and reserved regions.
 
@@ -129,17 +138,18 @@ The asset names are in `Shared/Assets/GameAsset.swift`, and the source files are
 | `Cat3` | 32×192, 6 frames | pounce, used for hammering and kaiju stomps (`.pounce`) |
 | `Cat4` | 32×832, 26 frames | grooming (`.groom`) |
 | `Cat5` | 32×96, 3 frames | icons: arrow, small paw, big paw |
-| `CatBox` | 32×64, 2 frames | frame 0 = closed box (logo), frame 1 = cat peeking (`PeekingCatView`) |
+| `CatBox` | 32×64, 2 frames | frame 0 = closed box (logo), frame 1 = cat peeking (unused since `PeekingCatView` was archived) |
 | `CityTiles` | 192×120, 24×15 tiles of 8×8 | Kenney tilemap; index = row × 24 + col |
 | `CitySample` | Kenney sample scene | optional backdrop |
-| `Slime/Bat/Rat` + `Neutral/Angry/Hurt` | large painted PNGs | nest minions only (CC BY-NC, credit Red Chan) |
+| `Slime/Bat/Rat` + `Neutral/Angry/Hurt` | large painted PNGs | **unused**: the user asked for the rats and nest to be removed (CC BY-NC, credit Red Chan if used) |
 
 - **Cat frames** are 32×32, stacked vertically. The cat only fills the middle of the frame, so `ActorView` draws it at 2.5× the tile size. All cats are the same white sprite, tinted per `CatLook`, and flipped when facing left.
 - **Tile indices** are in `TileArt`:
   - grass 0/24/48, pavement 3/27, asphalt 291, bush 310, palm 263, cars 275/299/323
   - towers (roof/middle/base): purple 169/217/241, pink 174/222/246, white 179/227/251, gray 184/232/256
   - rubble 189–191
-- **Removed on purpose:** the two "Cute Monsters" sprites are in `archive/removed/`. Don't reintroduce them. There's no dungeon pack.
+- **Removed on purpose:** the two "Cute Monsters" sprites, the right-side Monster Nest, the box cat (`PeekingCatView`), the minions, and the red fold line are all retired (in `archive/removed/` where applicable). Don't reintroduce them. There's no dungeon pack.
+- **Red eyes:** `CatSprite(hasRedEyes:)` draws small glowing dots at about (17, 16) and (20, 16) of the 32×32 idle frame (only on `.idle`); the kaiju uses these. The warning state's big eyes are a separate view, `Open/Views/HidingEyes.swift`.
 
 ## 7. How to extend (recipes)
 
@@ -157,14 +167,14 @@ The asset names are in `Shared/Assets/GameAsset.swift`, and the source files are
 - The engine, all six states, hinge/size-class/scene-phase input, simulated input, demo mode, and haptics.
 - The 2D grid world with roads, lots, towers, block expansion, BFS movement, and citizens.
 - `BuilderBrain`: wander → walk to the shortest tower → hammer → floor → expand.
-- `DestroyerBrain`: warning tremors, erratic agitation pacing, kaiju targeting and stomping.
+- `DestroyerBrain`: at warning the cat hides (everything freezes, no damage); at 90°+ the 1.5× kaiju hunts and eats citizen cats, and otherwise smashes the nearest tower.
 - Closed screen: map, builder layer, focus HUD, and neglect sheet.
-- Open screen: `ArrangementView` with map + nest, the peeking cat with mood bubbles, minions, the fold glow, and dust/debris.
+- Open screen: the city stretched edge to edge across the whole inner display. At warning, darkness with only big red blinking eyes. At 90°+, the 1.5× kaiju hunts and eats citizen cats ("CHOMP!") and smashes towers, with a red tint, a fold-aware status banner, and dust/debris.
 
 **Not yet verified:** nobody has run it in the simulator after the 2D rewrite. First steps for the next agent:
 1. Run it and check that the tile indices, cat frame alignment (`ActorView` y-offset `size * 0.3`), and kaiju scale look right.
 2. Check that cats face the right direction; the sprite is assumed to face right.
-3. Check that the `CatBox` eye anchor (`PeekingCatView.eyeAnchor`) lines up.
+3. Check the eye size and position at warning (`HidingEyes`, width = 5 tiles), that the kaiju catches cats (tune `kaijuStep`, `fleeStep`, `huntRadius`), and that the stretched tiles look acceptable on the inner display.
 
 **Backlog:** see the task lists in `docs/DEV_A_CLOSED.md` and `docs/DEV_B_OPEN.md`.
 - Highest value for the demo: stomp shake + debris at the lot, the kaiju transformation moment, the block-unlock banner, and the split-screen banner.

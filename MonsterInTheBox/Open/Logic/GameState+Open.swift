@@ -1,23 +1,20 @@
-import Foundation
+import CoreGraphics
 
 /// Open-phone extras on `GameState`. Kept in Open/ so Dev B can change them freely.
 extension GameState {
-    /// The cat in the box that begs you not to open the phone. Nil once the kaiju is out.
+    /// Drives the message bubble over the kaiju. Warning has none: only the eyes show.
     var catMood: CatMood? {
-        switch self {
-        case .warning: .pleading
-        case .agitation: .annoyed
-        default: nil
-        }
+        self == .agitation ? .annoyed : nil
     }
 
-    /// Which minion from "Sprite Pack Monsters A" shows up in the Monster Nest.
-    var minion: Minion? {
+    /// Warning: the cat hides in the dark and only its eyes show.
+    var showsOnlyEyes: Bool { self == .warning }
+
+    /// The one hero cat becomes a 1.5× kaiju once the hinge passes 90°.
+    var heroScale: CGFloat {
         switch self {
-        case .warning: Minion(species: .bat, mood: .neutral)
-        case .agitation: Minion(species: .rat, mood: .angry)
-        case .rampage, .multitasking: Minion(species: .slime, mood: .angry)
-        case .incubation, .neglect: nil
+        case .agitation, .rampage, .multitasking: 1.5
+        case .incubation, .warning, .neglect: 1
         }
     }
 }

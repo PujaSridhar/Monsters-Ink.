@@ -28,6 +28,8 @@ final class KaijuEngine {
     private(set) var floorsDestroyedCount = 0
     private(set) var blocksDevelopedCount = 0
     private(set) var lastChangedLot: GridPoint?
+    private(set) var catsEatenCount = 0
+    private(set) var lastEatenPosition: GridPoint?
     /// Set when the app returns from the background with decay applied.
     private(set) var neglectReport: NeglectReport?
 
@@ -180,7 +182,9 @@ final class KaijuEngine {
         case .paused:
             events = []
         }
-        world.tickCitizens(dt: dt, isFleeing: current.isDestructive)
+        if !current.freezesCitizens {
+            world.tickCitizens(dt: dt, fleeingFrom: current.isDestructive ? world.actors.hero.position : nil)
+        }
 
         // Only assign when changed, so observers of `map` don't redraw on every cat step.
         if world.map != map { map = world.map }
@@ -209,6 +213,10 @@ final class KaijuEngine {
                 haptics.slam()
             case .blockDeveloped:
                 blocksDevelopedCount += 1
+            case .catEaten(let position):
+                catsEatenCount += 1
+                lastEatenPosition = position
+                haptics.slam()
             }
         }
     }

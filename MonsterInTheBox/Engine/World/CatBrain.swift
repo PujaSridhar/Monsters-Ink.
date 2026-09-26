@@ -26,4 +26,6 @@ enum WorldEvent: Equatable {
     case floorDestroyed(GridPoint)
     case towerCollapsed(GridPoint)
     case blockDeveloped(BlockID)
+    /// The kaiju ate a citizen cat standing at this cell.
+    case catEaten(GridPoint)
 }

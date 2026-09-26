@@ -21,10 +21,13 @@ enum GameTuning {
     /// The next block unlocks once every tower in the city has this many floors.
     static let floorsToExpand = 2
     static let healthPerFloor: Double = 3
+    /// Helper cats in a new city (one more joins per developed block). The kaiju eats them.
+    static let startingCitizens = 3
 
     // MARK: Destroying
 
-    static let warningFloorsPerSecond: Double = 0.15
+    /// Warning is only a stare-down (red eyes); destruction starts at 90°.
+    static let warningFloorsPerSecond: Double = 0
     static let agitationFloorsPerSecond: Double = 0.5
     static let rampageFloorsPerSecond: Double = 3
     static let healthPerDestroyedFloor: Double = 4
@@ -33,9 +36,18 @@ enum GameTuning {
 
     static let heroStep: TimeInterval = 0.3
     static let erraticStep: TimeInterval = 0.12
-    static let kaijuStep: TimeInterval = 0.35
+    /// The kaiju cuts through blocks while citizens are stuck on roads, so it can catch them
+    /// even though it's slightly slower.
+    static let kaijuStep: TimeInterval = 0.24
     static let citizenStep: TimeInterval = 0.5
-    static let fleeStep: TimeInterval = 0.12
+    static let fleeStep: TimeInterval = 0.28
+
+    // MARK: Eating (open phone)
+
+    /// The kaiju hunts any citizen within this many tiles; otherwise it smashes towers.
+    static let huntRadius = 7
+    /// A citizen this close (in tiles) gets eaten.
+    static let eatRadius = 1
     /// Chance per tick that an idle citizen stays put instead of wandering.
     static let citizenWanderChance: Double = 0.97
 

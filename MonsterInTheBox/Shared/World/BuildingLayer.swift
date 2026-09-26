@@ -8,7 +8,7 @@ struct BuildingLayer: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(lots) { lot in
-                TowerSprite(lot: lot, tileSize: metrics.tileSize)
+                TowerSprite(lot: lot, tileWidth: metrics.tileWidth, tileHeight: metrics.tileHeight)
                     .position(towerCenter(for: lot))
             }
         }
@@ -19,7 +19,7 @@ struct BuildingLayer: View {
     /// The tower's bottom edge sits on the bottom of its lot cell.
     private func towerCenter(for lot: Lot) -> CGPoint {
         let cell = metrics.rect(of: lot.position)
-        let height = CGFloat(TowerSprite.tileCount(for: lot)) * metrics.tileSize
+        let height = CGFloat(TowerSprite.tileCount(for: lot)) * metrics.tileHeight
         return CGPoint(x: cell.midX, y: cell.maxY - height / 2)
     }
 }
@@ -27,7 +27,8 @@ struct BuildingLayer: View {
 /// One tower: roof on top, middle floors, base with a door. Rust tints it brown.
 struct TowerSprite: View {
     var lot: Lot
-    var tileSize: CGFloat
+    var tileWidth: CGFloat
+    var tileHeight: CGFloat
 
     static func tileCount(for lot: Lot) -> Int {
         if lot.isEmpty { return lot.isRubble ? 1 : 0 }
@@ -37,13 +38,13 @@ struct TowerSprite: View {
     var body: some View {
         VStack(spacing: 0) {
             if lot.isRubble {
-                CityTile(index: lot.style.rubbleTile, size: tileSize)
+                CityTile(index: lot.style.rubbleTile, width: tileWidth, height: tileHeight)
             } else if !lot.isEmpty {
-                CityTile(index: lot.style.roofTile, size: tileSize)
+                CityTile(index: lot.style.roofTile, width: tileWidth, height: tileHeight)
                 ForEach(0..<(lot.floors - 1), id: \.self) { _ in
-                    CityTile(index: lot.style.middleTile, size: tileSize)
+                    CityTile(index: lot.style.middleTile, width: tileWidth, height: tileHeight)
                 }
-                CityTile(index: lot.style.baseTile, size: tileSize)
+                CityTile(index: lot.style.baseTile, width: tileWidth, height: tileHeight)
             }
         }
         .overlay {

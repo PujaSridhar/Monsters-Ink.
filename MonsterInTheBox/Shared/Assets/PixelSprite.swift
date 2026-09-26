@@ -13,15 +13,26 @@ struct PixelSprite: View {
     }
 }
 
-/// One 8×8 tile from the Kenney city tilemap, drawn at `size` points.
+/// One 8×8 tile from the Kenney city tilemap, drawn at `width` × `height` points.
 struct CityTile: View {
     var index: Int
-    var size: CGFloat
+    var width: CGFloat
+    var height: CGFloat
+
+    init(index: Int, width: CGFloat, height: CGFloat) {
+        self.index = index
+        self.width = width
+        self.height = height
+    }
+
+    init(index: Int, size: CGFloat) {
+        self.init(index: index, width: size, height: size)
+    }
 
     var body: some View {
         SpriteSheet.cityTiles.frame(index)
             .resizable()
-            .frame(width: size, height: size)
+            .frame(width: width, height: height)
     }
 }
 

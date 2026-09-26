@@ -27,8 +27,8 @@ enum GameState: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .incubation: "The cat is building your city"
-        case .warning: "Something is peeking out of the box…"
-        case .agitation: "The cat is NOT happy"
+        case .warning: "Every cat is watching you. Close the phone."
+        case .agitation: "The cat is growing… and smashing"
         case .rampage: "KAIJU CAT UNLEASHED"
         case .neglect: "Acid rain falls on the city"
         case .multitasking: "Split screen woke the kaiju cat"
@@ -66,6 +66,9 @@ enum GameState: String, CaseIterable, Identifiable {
     }
 
     var isDestructive: Bool { floorsDestroyedPerSecond > 0 }
+
+    /// Warning: every cat stops and stares at the user.
+    var freezesCitizens: Bool { self == .warning }
 
     /// The hero cat is drawn giant in these states.
     var isKaiju: Bool { self == .rampage || self == .multitasking }

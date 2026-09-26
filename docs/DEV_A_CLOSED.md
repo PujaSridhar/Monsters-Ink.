@@ -17,7 +17,7 @@ MonsterInTheBox/
 ├── Shared/
 │   ├── World/      Rendering layers: WorldStage, GroundLayer, BuildingLayer, ActorView (shared)
 │   ├── Assets/     SpriteSheet, GameAsset, PixelSprite                               (shared)
-│   ├── Effects/    SpriteKit acid rain / dust, fold glow                             (shared)
+│   ├── Effects/    SpriteKit acid rain / dust                                       (shared)
 │   └── HUD/        State Visualizer + debug drawer                                   (shared)
 ├── Closed/         ◀── YOU
 │   ├── Logic/BuilderBrain.swift        what the cat does while closed
@@ -25,7 +25,7 @@ MonsterInTheBox/
 │   ├── Views/FocusHUD.swift            timer + progress + city size
 │   ├── Views/NeglectReportView.swift   "while you were away" sheet
 │   └── ClosedGameView.swift            composes the screen
-└── Open/           ◀── Dev B (DestroyerBrain, DestroyerActorsLayer, MonsterNest, …)
+└── Open/           ◀── Dev B (DestroyerBrain, DestroyerActorsLayer, CityBoard, …)
 ```
 
 **Separation rules:**
@@ -36,10 +36,10 @@ MonsterInTheBox/
 
 ## The world (top-down, 8-bit, 2D grid)
 
-`CityLayout` is a 13 × 19 tile grid. Roads run along every 6th row and column; between them are 5 × 5 blocks. Each block's bottom row is 5 lots facing the road. Towers stand on a lot and grow **upward** into the block (roof + middles + base), up to 4 floors, like buildings in Pokémon towns.
+`CityLayout` is a 19 × 19 tile grid (3 × 3 blocks; it's square so the open phone can spread the city across both halves of the fold). Roads run along every 6th row and column; between them are 5 × 5 blocks. Each block's bottom row is 5 lots facing the road. Towers stand on a lot and grow **upward** into the block (roof + middles + base), up to 4 floors, like buildings in Pokémon towns.
 
 - **Movement is 2D and grid-restricted.** Cats move one tile at a time in 4 directions, only on developed road tiles (`CityWorld.WalkRule.roads`), using BFS pathfinding (`Pathfinder`). The view glides them between tiles.
-- **The city expands.** It starts with one developed block surrounded by grass and trees. When every tower is at least `GameTuning.floorsToExpand` (2) floors, the next block in `CityLayout.expansionOrder` opens: new roads appear, 5 new lots appear, and a new citizen cat moves in. Six blocks in total.
+- **The city expands.** It starts with one developed block surrounded by grass and trees. When every tower is at least `GameTuning.floorsToExpand` (2) floors, the next block in `CityLayout.expansionOrder` opens: new roads appear, 5 new lots appear, and a new citizen cat moves in. Nine blocks in total, starting bottom-center.
 
 ## What `BuilderBrain` does now (working baseline)
 

@@ -19,7 +19,9 @@ struct CityWorld: Equatable {
         let start = map.roads.min { ($0.y, $0.x) > ($1.y, $1.x) } ?? GridPoint(x: 0, y: 0)
         self.map = map
         actors = CityActors(hero: CatActor(id: 0, look: .hero, position: start, stepDuration: GameTuning.heroStep))
-        addCitizen()
+        for _ in 0..<GameTuning.startingCitizens {
+            addCitizen()
+        }
     }
 
     init(map: CityMap, actors: CityActors) {
@@ -48,6 +50,12 @@ struct CityWorld: Equatable {
             guard let point else { return true }
             return candidate.manhattanDistance(to: point) <= radius
         }.randomElement()
+    }
+
+    /// The farthest of a few random roads from `threat`, so fleeing looks panicked, not robotic.
+    func escapeRoad(awayFrom threat: GridPoint) -> GridPoint? {
+        (0..<8).compactMap { _ in randomRoad() }
+            .max { $0.manhattanDistance(to: threat) < $1.manhattanDistance(to: threat) }
     }
 
     func nearestRoad(to point: GridPoint) -> GridPoint? {
@@ -80,8 +88,13 @@ struct CityWorld: Equatable {
         )
     }
 
-    /// Citizens wander the roads. When `isFleeing`, they sprint.
-    mutating func tickCitizens(dt: TimeInterval, isFleeing: Bool) {
+    mutating func removeCitizen(id: Int) {
+        actors.citizens.removeAll { $0.id == id }
+    }
+
+    /// Citizens wander the roads. With a `threat`, they sprint to roads far away from it.
+    mutating func tickCitizens(dt: TimeInterval, fleeingFrom threat: GridPoint?) {
+        let isFleeing = threat != nil
         for index in actors.citizens.indices {
             actors.citizens[index].stepDuration = isFleeing ? GameTuning.fleeStep : GameTuning.citizenStep
             actors.citizens[index].advance(dt: dt)
@@ -91,7 +104,8 @@ struct CityWorld: Equatable {
                 continue
             }
             let start = actors.citizens[index].position
-            if let goal = randomRoad(), let path = path(from: start, to: goal, rule: .roads) {
+            if let goal = threat.flatMap({ escapeRoad(awayFrom: $0) }) ?? randomRoad(),
+               let path = path(from: start, to: goal, rule: .roads) {
                 actors.citizens[index].walk(path)
             } else if let road = nearestRoad(to: start) {
                 actors.citizens[index].teleport(to: road)

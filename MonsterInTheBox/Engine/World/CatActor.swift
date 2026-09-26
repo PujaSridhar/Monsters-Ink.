@@ -21,9 +21,11 @@ struct CatActor: Identifiable, Equatable {
 
     var isMoving: Bool { !path.isEmpty }
 
+    /// Starts (or re-routes) a walk. Re-routing mid-walk keeps the step timer, so a chasing
+    /// cat that re-paths often still moves.
     mutating func walk(_ newPath: [GridPoint]) {
+        if path.isEmpty { stepElapsed = 0 }
         path = newPath
-        stepElapsed = 0
     }
 
     mutating func stop() {
