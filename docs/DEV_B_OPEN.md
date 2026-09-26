@@ -22,11 +22,12 @@ MonsterInTheBox/
 ├── Closed/         ◀── Dev A (BuilderBrain, BuilderActorsLayer, FocusHUD, …)
 └── Open/           ◀── YOU
     ├── Logic/DestroyerBrain.swift        hide → hunt & eat helper cats → smash towers
-    ├── Logic/CatMood.swift               bubble lines (annoyed, at 90°)
+    ├── Logic/CatMood.swift               bubble lines (annoyed; only if agitation is re-enabled)
     ├── Logic/GameState+Open.swift        catMood, showsOnlyEyes, heroScale per state
     ├── Views/CityBoard.swift             the city stretched edge to edge + debris
-    ├── Views/DestroyerActorsLayer.swift  dark + eyes at warning; 1.5× kaiju, citizens, CHOMP! pop
+    ├── Views/DestroyerActorsLayer.swift  dark + eyes at warning; 2× kaiju, citizens, CHOMP! pop
     ├── Views/HidingEyes.swift            big red slit-pupil eyes that pulse and blink
+    ├── Views/HidingEyesStage.swift       keeps the eyes on the right screen (sideways) / bottom screen (upward), creeping toward the fold
     ├── Views/MessageBubble.swift         iMessage-style bubble
     ├── Views/StatusBanner.swift          subtitle, kept off the fold via ReservedRegion
     └── OpenGameView.swift                CityBoard + mood tint + banner
@@ -48,9 +49,9 @@ There is no right-side panel anymore. The Monster Nest, the box cat, the rat/bat
 
 | Hinge | State | What happens |
 | --- | --- | --- |
-| Cracked (< 75°) | `.warning` | **The cat hides.** The city goes dark (88% black) and every cat freezes. **Only a pair of big glowing red slit-pupil eyes** is visible at the cat's position; they pulse, glance, blink every ~3.4 s, and grow with the hinge angle. The banner is hidden. **Nothing is destroyed yet.** Haptics pulse. |
-| 90° (≥ 75°) | `.agitation` | The one cat becomes a **1.5× kaiju** (`heroScale`). It ignores roads and **hunts the helper cats** (any within `huntRadius` 7). It **eats** any within `eatRadius` 1 ("CHOMP!" + haptic), and when nobody's near it smashes the nearest tower at 0.5 floors/s. Survivors flee to roads far away. A red bubble ("I SAID close it."). |
-| 180° / flat | `.rampage` | Same 1.5× kaiju, smashing at 3 floors/s. The focus session is wiped. |
+| Partially open (any angle < 180°) | `.warning` | **The cat hides.** The city goes dark (88% black) and every cat freezes. **Only a pair of big glowing red slit-pupil eyes** is visible. They only appear on the inner display, never on the closed phone's front screen. Opened sideways (vertical fold), they sit on the **right screen**, starting at its right edge and creeping toward the fold as the hinge opens. Opened upward (horizontal fold), they sit on the **bottom screen**, rising toward the fold. At 180° the eyes disappear and the city + kaiju take over. They they pulse, glance, blink every ~3.4 s, and grow with the hinge angle. The banner is hidden. **Nothing is destroyed yet.** Haptics pulse. |
+| (unused: `agitationAngle` = 178°) | `.agitation` | The one cat becomes a **2× kaiju** (`heroScale`). It ignores roads and **hunts the helper cats** (any within `huntRadius` 7). It **eats** any within `eatRadius` 1 ("CHOMP!" + haptic), and when nobody's near it smashes the nearest tower at 0.5 floors/s. Survivors flee to roads far away. A red bubble ("I SAID close it."). |
+| 180° / flat | `.rampage` | Same 2× kaiju, smashing at 3 floors/s. The focus session is wiped. |
 | Split screen | `.multitasking` | Same as rampage. |
 
 The engine already handles:
@@ -92,7 +93,7 @@ Eaten cats are not replaced, except for one new helper per developed block. Topp
 ### Must-have
 1. **Verify on the simulator:** the stretched tiles look OK, the eyes read well in the dark, and the kaiju actually catches cats. Tune `kaijuStep` / `fleeStep` / `huntRadius` if not.
 2. **Eating juice.** On `catsEatenCount`, shake the board, burst debris at `lastEatenPosition` (`EffectsScene.burst(at:)`), and play the pounce frame bigger for a beat.
-3. **Eyes → kaiju reveal.** When warning turns into agitation, have the eyes rush toward the viewer and flash before the 1.5× cat appears.
+3. **Eyes → kaiju reveal.** When warning turns into agitation, have the eyes rush toward the viewer and flash before the 2× cat appears.
 4. **Split-screen banner.** When `engine.isMultitasking`, show "CLOSE THE OTHER APP" in red.
 
 ### Should-have
@@ -111,7 +112,7 @@ Eaten cats are not replaced, except for one new helper per developed block. Topp
 - **Any simulator:** tap the State Visualizer HUD → **Simulate hinge**.
   - **0°** for about 30 s: builds the city (demo speed).
   - **10°:** darkness, only the red eyes.
-  - **90°:** 1.5× kaiju hunting and eating cats, smashing towers.
+  - **160°:** 2× kaiju hunting and eating cats, smashing towers.
   - **180°:** the same kaiju, destroying faster.
   - **Simulate split screen** for the trap.
 - **iPhone Duo simulator:** Fold → Partially Open (the banner moves off the fold), Fully Open (rampage).

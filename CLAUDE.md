@@ -20,6 +20,7 @@ Priorities, in order:
 - **Build settings:** Swift 6, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, approachable concurrency. Everything is MainActor by default. Protocol conformances used off the main actor (for example `Shape`) must be marked `nonisolated` (see `BubbleTail` in `Open/Views/MessageBubble.swift`).
 - **`rm` may be blocked** by the sandbox. Retire files by moving them to `archive/removed/` (outside the target).
 - **No git commits, branches, or pushes** unless the user explicitly asks.
+- **Hinge debugging:** every real hinge change is logged (subsystem `com.monstersink.MonsterInTheBox`, category `Engine`) as `Hinge: <status> at <angle>° → <state>`. Read the simulator run log to see what the Fold controls actually report. The debug HUD also shows the angle and status live.
 - **Building:** in Bitrig, use its build tool. Otherwise run `xcodebuild -project MonsterInTheBox.xcodeproj -scheme MonsterInTheBox -destination 'generic/platform=iOS Simulator' build`. Always build after changes.
 
 ## 3. Architecture
@@ -61,7 +62,7 @@ MonsterInTheBox/
     ├── Logic/DestroyerBrain.swift (hunt + eat cats, smash towers), CatMood.swift,
     │         GameState+Open.swift (catMood, showsOnlyEyes, heroScale)
     ├── Views/CityBoard.swift (WorldStage fillsScreen, edge to edge), DestroyerActorsLayer.swift
-    │         (dark + HidingEyes at warning; 1.5× kaiju, citizens, CHOMP! pop, bubble otherwise),
+    │         (dark + HidingEyes at warning; 2× kaiju, citizens, CHOMP! pop, bubble otherwise),
     │         HidingEyes.swift, MessageBubble.swift, StatusBanner.swift (fold-aware via ReservedRegion)
     └── OpenGameView.swift         CityBoard + red mood tint + banner (hidden at warning)
 ```
@@ -84,12 +85,12 @@ Views observe engine.map (ground + towers) and engine.actors (cats) separately
 Checked in this order:
 1. Backgrounded → `.neglect`
 2. `isMultitasking` → `.multitasking`, where `isMultitasking` = compact width **and** hinge not closed. The closed outer display is also compact, so without that check, closing the phone would trigger a rampage.
-3. Hinge closed → `.incubation`
-4. `.fullyOpen` or ≥ 178° → `.rampage` (kaiju at 1.5×, smashes at 3 floors/s)
-5. ≥ 75° → `.agitation` (kaiju at 1.5×, smashes at 0.5 floors/s)
-6. Otherwise → `.warning`: the cat hides. Nothing is destroyed, every cat freezes (`GameState.freezesCitizens`), the city goes dark, and **only big red blinking eyes** (`HidingEyes`) are visible.
+3. Hinge closed (as reported by the system) → `.incubation`. The **outer display never shows the eyes**; it always shows the builder city. The eyes appear only on the inner display, from the first reported partial opening.
+4. `.fullyOpen` or ≥ 178° → `.rampage` (kaiju at 2×, smashes at 3 floors/s)
+5. ≥ `agitationAngle` → `.agitation`. This is **currently unreachable**, because `agitationAngle` = `rampageAngle` = 178°; the user wants the eyes for every partial angle.
+6. Otherwise → `.warning`: the cat hides. Nothing is destroyed, every cat freezes (`GameState.freezesCitizens`), the city goes dark, and **only big red blinking eyes** (`HidingEyes`) are visible. `HidingEyesStage` moves them with the angle: with a vertical fold (opened sideways) they stay on the **right screen**, going from its right edge toward the fold. With a horizontal fold (opened upward) they stay on the **bottom screen**, going from its bottom edge toward the fold. They never cross the fold. The fold axis comes from `ReservedRegion(.division)`, falling back to the screen shape.
 
-**One cat, one kaiju.** There's a single hero cat. On the open phone it becomes the kaiju (1.5×) and **hunts the citizen cats that helped build the city**:
+**One cat, one kaiju.** There's a single hero cat. On the open phone it becomes the kaiju (2×) and **hunts the citizen cats that helped build the city**:
 - **Eating:** any citizen within `GameTuning.huntRadius` (7) is chased, and one within `eatRadius` (1) is eaten. That emits `WorldEvent.catEaten`; the engine then bumps `catsEatenCount` and `lastEatenPosition`, and fires a haptic slam.
 - **Smashing:** with nobody to chase, it smashes the nearest tower.
 - **Fleeing:** citizens flee to roads far from the kaiju (`tickCitizens(fleeingFrom:)`).
@@ -102,7 +103,7 @@ Entering a kaiju state wipes `focusSeconds` and fires a haptic slam. Every state
 1. **The engine is the single source of truth.** Views never mutate game state. Only `RootView` feeds input, and only `StateVisualizer` uses `simulate…` / `resetCity`.
 2. **Brains mutate only `CityWorld`** (map + actors) and report what happened as `WorldEvent`s. Health, counters, and haptics are applied by the engine in `apply(_:)`.
 3. **Map and actors stay separate.** They're separate engine properties, separate layers, and assigned back only when changed (`if world.map != map`), so the ground Canvas doesn't redraw on every cat step.
-4. **Movement is on the grid.** One tile per step, 4-way, via `CatActor.walk(path)` + `advance(dt:)`. Re-routing mid-walk keeps the step timer, so chasing works. Normal cats use `WalkRule.roads`; only the smashing hero (90°+) uses `.anywhere`. The view (`ActorView`) interpolates between tiles with `.linear(duration: stepDuration)`.
+4. **Movement is on the grid.** One tile per step, 4-way, via `CatActor.walk(path)` + `advance(dt:)`. Re-routing mid-walk keeps the step timer, so chasing works. Normal cats use `WalkRule.roads`; only the smashing hero (flat or split screen) uses `.anywhere`. The view (`ActorView`) interpolates between tiles with `.linear(duration: stepDuration)`.
 5. **Rendering layers go ground → buildings → actors** inside `WorldStage`. Each mode passes its own actors layer through the `WorldStage { metrics in … }` closure. New visual things belong in a new layer view, not in the engine.
 6. **Pixel art is drawn with `.interpolation(.none)`** (`SpriteSheet.frame` and `PixelSprite` already do this). In SpriteKit, use `filteringMode = .nearest`.
 7. **Every number goes in `GameTuning`.**
@@ -167,9 +168,9 @@ The asset names are in `Shared/Assets/GameAsset.swift`, and the source files are
 - The engine, all six states, hinge/size-class/scene-phase input, simulated input, demo mode, and haptics.
 - The 2D grid world with roads, lots, towers, block expansion, BFS movement, and citizens.
 - `BuilderBrain`: wander → walk to the shortest tower → hammer → floor → expand.
-- `DestroyerBrain`: at warning the cat hides (everything freezes, no damage); at 90°+ the 1.5× kaiju hunts and eats citizen cats, and otherwise smashes the nearest tower.
+- `DestroyerBrain`: at warning the cat hides (everything freezes, no damage); when flat (180°) or in split screen the 2× kaiju hunts and eats citizen cats, and otherwise smashes the nearest tower.
 - Closed screen: map, builder layer, focus HUD, and neglect sheet.
-- Open screen: the city stretched edge to edge across the whole inner display. At warning, darkness with only big red blinking eyes. At 90°+, the 1.5× kaiju hunts and eats citizen cats ("CHOMP!") and smashes towers, with a red tint, a fold-aware status banner, and dust/debris.
+- Open screen: the city stretched edge to edge across the whole inner display. At warning, darkness with only big red blinking eyes. At 180° or in split screen, the 2× kaiju hunts and eats citizen cats ("CHOMP!") and smashes towers, with a red tint, a fold-aware status banner, and dust/debris.
 
 **Not yet verified:** nobody has run it in the simulator after the 2D rewrite. First steps for the next agent:
 1. Run it and check that the tile indices, cat frame alignment (`ActorView` y-offset `size * 0.3`), and kaiju scale look right.

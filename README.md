@@ -13,8 +13,8 @@ Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creati
 | Act | What the user does | What happens |
 | --- | --- | --- |
 | **1. Incubation** | Rests the phone closed to focus | On the outer display, the hero cat walks the roads of a top-down 8-bit town and builds towers floor by floor. When every tower is tall enough, a new district unlocks and the city spreads across the grass. |
-| **2. Provocation** | Cracks the hinge open | The city fills the entire inner display, edge to edge across the fold, but it goes **dark**. The cat is hiding: **only its big red eyes** glow and blink out of the darkness. Nothing breaks yet. Haptics pulse, getting stronger the wider the hinge opens. |
-| | Opens to 90° or more | The one cat turns into a **1.5× kaiju**. It hunts down and **eats the helper cats** that built the city ("CHOMP!") and smashes towers. The survivors flee. |
+| **2. Provocation** | Cracks the hinge open | The city fills the entire inner display, edge to edge across the fold, but it goes **dark**. The cat is hiding: **only its big red eyes** glow and blink out of the darkness. They only appear on the inner display, never on the closed phone's front screen. Opened sideways (vertical fold), they sit on the **right screen**, starting at its right edge and creeping toward the fold as the hinge opens. Opened upward (horizontal fold), they sit on the **bottom screen**, rising toward the fold. At 180° the eyes disappear and the city + kaiju take over. Nothing breaks yet. Haptics pulse, getting stronger the wider the hinge opens. |
+| | Opens flat (180°) | The one cat turns into a **2× kaiju**. It hunts down and **eats the helper cats** that built the city ("CHOMP!") and smashes towers. The survivors flee. |
 | **3. Rampage** | Opens flat (180°) | The kaiju destroys much faster, and the focus session is wiped. |
 | **4. Neglect** | Sends the app to the background | The user never sees it happen, but acid rain falls while they're away. When they come back, the city has lost health and the buildings have rusted. |
 | **5. Multitasking Trap** | Snaps another app into split screen | Instant kaiju rampage. Leaving split screen checks the hinge again: flat keeps the rampage going, cracked returns to warning, folded returns to building. |
@@ -24,9 +24,9 @@ Built for **Bitrig Hacks** (iPhone Duo hackathon). Judges are looking for creati
 | State | Hinge | Screen | Cat | City |
 | --- | --- | --- | --- | --- |
 | Incubation | Closed | Full screen | Builder cat walking the roads | Builds, then expands |
-| Warning | Cracked (< 75°) | Full screen | Hidden: only big red eyes in the dark | Untouched (a warning only) |
-| Agitation | ~90° (≥ 75°) | Full screen | 1.5× kaiju, eating helper cats | Destroyed moderately |
-| Rampage | 180° / fully open | Full screen | 1.5× kaiju, eating helper cats | Stomped rapidly |
+| Warning | Partially open (any angle < 180°) | Full screen | Hidden: only big red eyes in the dark | Untouched (a warning only) |
+| Agitation | Currently unused (`agitationAngle` = 178°) | — | — | — |
+| Rampage | 180° / fully open | Full screen | 2× kaiju, eating helper cats | Stomped rapidly |
 | Neglect | Any | Background | Asleep (seen afterward) | Rusts and decays over time |
 | Multitasking | Any (open) | Split screen | Kaiju cat | Stomped rapidly |
 

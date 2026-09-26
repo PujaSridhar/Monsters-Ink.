@@ -3,6 +3,8 @@ import SwiftUI
 /// A plain-value snapshot of the hinge, so the engine never depends on SwiftUI hinge types
 /// and so the State Visualizer can simulate a hinge on any simulator.
 struct HingeReading: Equatable {
+    /// Exactly as the system reports it. While it's `.closed` the app is on the outer display,
+    /// which always shows the builder city (never the eyes).
     var status: HingeStatus
     /// 0 = folded closed, 180 = fully flat.
     var angleDegrees: Double
@@ -23,7 +25,7 @@ struct HingeReading: Equatable {
     /// Builds a reading from a raw angle, used by the simulated hinge slider.
     init(simulatedAngle angle: Double) {
         let status: HingeStatus = switch angle {
-        case ..<1: .closed
+        case ..<GameTuning.crackAngle: .closed
         case GameTuning.rampageAngle...: .fullyOpen
         default: .partiallyOpen
         }

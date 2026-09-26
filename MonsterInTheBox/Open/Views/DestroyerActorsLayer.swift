@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// DEV B — What moves on the open-phone map.
-/// - Warning: the city goes dark and the cat hides; only its big red eyes stare out.
-/// - Agitation / Rampage / Multitasking: the one hero cat is a 1.5× kaiju that hunts and eats
+/// - Warning: the city goes dark and the cat hides; only its big red eyes stare out, creeping
+///   from the edge toward the center as the hinge opens (see `HidingEyesStage`).
+/// - Agitation / Rampage / Multitasking: the one hero cat is a 2× kaiju that hunts and eats
 ///   the citizen cats and smashes towers. Citizens flee along the roads.
 struct DestroyerActorsLayer: View {
     @Environment(KaijuEngine.self) private var engine
@@ -15,9 +16,13 @@ struct DestroyerActorsLayer: View {
             if state.showsOnlyEyes {
                 Color.black.opacity(0.88)
                     .frame(width: metrics.size.width, height: metrics.size.height)
-                HidingEyes(width: metrics.tileSize * 5, intensity: engine.hapticIntensity)
-                    .position(metrics.center(of: actors.hero.position))
-                    .transition(.opacity)
+                HidingEyesStage(
+                    angle: engine.hinge.angleDegrees,
+                    intensity: engine.hapticIntensity,
+                    eyesWidth: max(metrics.tileSize * 7, 180)
+                )
+                .frame(width: metrics.size.width, height: metrics.size.height)
+                .transition(.opacity)
             } else {
                 ForEach(actors.citizens) { citizen in
                     ActorView(actor: citizen, metrics: metrics)

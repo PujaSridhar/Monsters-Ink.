@@ -3,7 +3,7 @@ import Foundation
 /// DEV B — Logic for every open-phone state.
 /// - Warning: the cat hides. Everything freezes; the view shows only its glowing eyes.
 ///   Nothing is destroyed yet.
-/// - Agitation (90°+), Rampage (180°), Multitasking: the one hero cat is a kaiju (drawn 1.5×).
+/// - Agitation (150°+), Rampage (flat), Multitasking: the one hero cat is a kaiju (drawn 2×).
 ///   It ignores roads, hunts the citizen cats that helped build the city and eats them, and
 ///   when none are nearby it smashes the nearest tower floor by floor.
 struct DestroyerBrain: CatBrain {

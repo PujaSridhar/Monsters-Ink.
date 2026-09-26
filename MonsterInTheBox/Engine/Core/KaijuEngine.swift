@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// The single source of truth. Views read from it; only `RootView` feeds it hardware input.
 ///
@@ -47,6 +48,7 @@ final class KaijuEngine {
     var isDemoMode = true
 
     private let haptics = HapticsController()
+    private static let log = Logger(subsystem: "com.monstersink.MonsterInTheBox", category: "Engine")
 
     init() {
         let world = CityWorld()
@@ -104,6 +106,7 @@ final class KaijuEngine {
     func hingeDidChange(_ reading: HingeReading?) {
         let previous = state
         realHinge = reading
+        Self.log.info("Hinge: \(reading?.status.rawValue ?? "none", privacy: .public) at \(reading?.angleDegrees ?? -1, privacy: .public)° → \(self.state.rawValue, privacy: .public)")
         stateMayHaveChanged(from: previous)
     }
 

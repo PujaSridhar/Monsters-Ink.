@@ -10,10 +10,10 @@ extension GameState {
     /// Warning: the cat hides in the dark and only its eyes show.
     var showsOnlyEyes: Bool { self == .warning }
 
-    /// The one hero cat becomes a 1.5× kaiju once the hinge passes 90°.
+    /// The one hero cat becomes a 2× kaiju once the phone is (nearly) flat or in split screen.
     var heroScale: CGFloat {
         switch self {
-        case .agitation, .rampage, .multitasking: 1.5
+        case .agitation, .rampage, .multitasking: 2
         case .incubation, .warning, .neglect: 1
         }
     }

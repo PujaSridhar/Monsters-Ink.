@@ -53,8 +53,13 @@ enum GameTuning {
 
     // MARK: Hinge (degrees, 0 = closed, 180 = flat)
 
+    /// The debug slider's smallest open angle. Real hardware uses the system-reported status.
+    static let crackAngle: Double = 1
     static let hapticStartAngle: Double = 15
     static let hapticMaxAngle: Double = 179
-    static let agitationAngle: Double = 75
+    /// Below this, a partially open phone shows only the hiding cat's eyes. Set equal to
+    /// `rampageAngle`, so every partially open angle is the eyes and only flat (180°) shows the
+    /// city and the kaiju. Lower it to bring back an in-between agitation state.
+    static let agitationAngle: Double = 178
     static let rampageAngle: Double = 178
 }
